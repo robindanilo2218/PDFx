@@ -29,6 +29,12 @@ O descarga uno por uno:
 - [PDFX-portable-linux.zip](https://drive.google.com/file/d/1KuFCfaPGVfyUv0QIlPX1O5xoWyIAbI7o/view?usp=drive_link) — 99 MB
 - [Código fuente (PDFX-proyecto.zip)](https://drive.google.com/file/d/12OANRy1Cjw5SNR9ZE_1eVHMjr2Ox9PzJ/view?usp=drive_link) — 0,9 MB
 
+### ¿Sólo quieres usarlo?
+
+👉 **[Guía rápida](docs/GUIA-RAPIDA.md)** — cómo abrirlo, el único ajuste que de
+verdad importa (y por qué los escaneados salen vacíos si no lo tocas), cómo
+tachar lo confidencial y qué hacer cuando algo falla. Sin jerga.
+
 ---
 
 ## Qué resuelve
