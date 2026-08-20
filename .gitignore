@@ -1,0 +1,29 @@
+# Entornos virtuales: uno por plataforma, porque Windows y Linux se construyen
+# desde esta misma carpeta y no pueden compartirlo.
+.venv/
+.venv-linux/
+
+# Todo lo que genera una compilacion. Se regenera con INSTALAR_PDFX.bat o
+# INSTALAR_PDFX.sh, asi que no tiene sentido versionarlo: son cientos de MB.
+dist/
+build/build-windows/
+build/build-linux/
+tools/
+
+# Registros de instalacion y de las herramientas que invoca.
+build/registro-instalacion*.txt
+build/log-*.txt
+build/salida-prueba.txt
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+
+# Ajustes locales de Claude Code: llevan dentro la ruta absoluta del equipo.
+.claude/
+
+# Sistema operativo
+Thumbs.db
+.DS_Store
