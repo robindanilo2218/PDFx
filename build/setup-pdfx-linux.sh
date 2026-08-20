@@ -606,13 +606,24 @@ escribir_texto "$PORTABLE/LEEME_PRIMERO.txt" \
     '' \
     'SI LOS PDF ESCANEADOS SALEN VACIOS' \
     '----------------------------------' \
-    'Si al convertir un escaneo sale un error de permisos' \
-    '(Permission denied), es el mismo caso de arriba: al OCR' \
-    'le falta el permiso. Ejecuta las dos ultimas ordenes de' \
-    'la seccion anterior.' \
+    'Lo primero: en la ventana, en el recuadro  Lectura ,' \
+    'cambia el desplegable  OCR  de  auto  a  always .' \
     '' \
-    'Si no, es que falta la carpeta  tools  o esta incompleta.' \
-    'Vuelve a copiar la carpeta PDFX entera desde el origen.' \
+    'En  auto  el programa mira si la pagina ya trae texto, y' \
+    'a un escaneo le basta con tener cabecera o numero de' \
+    'pagina para que la de por leida y no mire la imagen: te' \
+    'devuelve la pagina casi vacia. Con  always  la lee entera.' \
+    '' \
+    'Regla facil: si al abrir el PDF no puedes seleccionar el' \
+    'texto con el raton, es un escaneo. Pon  always .' \
+    '' \
+    'Si sale un error de permisos (Permission denied), lo que' \
+    'le falta al OCR es el permiso de ejecucion: usa las dos' \
+    'ultimas ordenes de la seccion anterior.' \
+    '' \
+    'Y si no es nada de eso, falta la carpeta  tools  o esta' \
+    'incompleta. Vuelve a copiar la carpeta PDFX entera desde' \
+    'el origen.' \
     '' \
     'LICENCIA' \
     '--------' \
