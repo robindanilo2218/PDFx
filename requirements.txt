@@ -1,0 +1,9 @@
+# Dependencias de PDFX. Todas con licencia permisiva (MIT / BSD / Apache).
+# Se evita PyMuPDF a proposito: es AGPL y obligaria a liberar el codigo del
+# cliente o a comprar licencia comercial.
+pypdfium2>=4.30        # PDFium (BSD-3): render y objetos de pagina
+pdfplumber>=0.11       # MIT: capa de texto, fuentes y tablas nativas
+python-docx>=1.1       # MIT: salida .docx
+openpyxl>=3.1          # MIT: salida .xlsx
+Pillow>=10.0           # MIT-CMU: imagenes
+numpy>=1.26            # BSD-3: binarizado, morfologia y perfiles

@@ -1,0 +1,25 @@
+[project]
+name = "pdfx"
+version = "1.0.0"
+description = "Conversor local de PDF (incluidos escaneados) a Markdown, Word, Excel y HTML"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-only" }
+dependencies = [
+    "pypdfium2>=4.30",
+    "pdfplumber>=0.11",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+    "Pillow>=10.0",
+    "numpy>=1.26",
+]
+
+[project.scripts]
+pdfx = "pdfx.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pdfx*"]

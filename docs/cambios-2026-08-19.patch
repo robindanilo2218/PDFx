@@ -1,0 +1,1436 @@
+# Cambios aplicados a PDFX el 2026-08-19
+#
+# Diff entre el estado que llego de la conversacion anterior y el estado
+# actual, verificado con tres instalaciones limpias en Windows y tres en
+# Debian 13 (WSL), las dos ultimas de cada una de principio a fin.
+#
+# Para aplicarlo sobre la otra copia:   git apply cambios-2026-08-19.patch
+#                        o bien:        patch -p1 < cambios-2026-08-19.patch
+#
+--- a/build/setup-pdfx-windows.ps1
++++ b/build/setup-pdfx-windows.ps1
+@@ -5,7 +5,7 @@
+     No hay que ejecutar ningun otro script: este se basta solo. Comprueba el
+     equipo, instala Python si hace falta, crea el entorno, descarga el OCR
+     Tesseract, compila el ejecutable, verifica que lo compilado funciona de
+-    verdad y deja dist\PDFX lista para copiar a una memoria USB.
++    verdad y deja dist\windows\PDFX lista para copiar a una memoria USB.
+ 
+     Un novato no ejecuta esto directamente: hace doble clic en INSTALAR_PDFX.bat,
+     que esta en la raiz del proyecto. Windows no ejecuta ficheros .ps1 con doble
+@@ -122,25 +122,61 @@
+     Escribir-Registro "> $exe $($argumentos -join ' ')"
+     $anterior = $ErrorActionPreference
+     $ErrorActionPreference = 'Continue'
++    $escritor = $null
+     try {
+-        # winget y pip dibujan barras y ruedas de progreso que, sin terminal
+-        # interactiva, salen como cientos de lineas de basura. Se descartan las
+-        # que no llevan ninguna letra ni digito.
+-        $util = { param($l) $t = "$l"; $t.Trim() -ne '' -and $t -match '[A-Za-z0-9]' }
++        # El registro NO se escribe con Tee-Object. En Windows PowerShell 5.1
++        # ese comando no admite -Encoding y guarda siempre en UTF-16, asi que
++        # cada caracter ASCII ocupaba dos bytes y la mitad del fichero eran
++        # ceros: los registros que se le piden al usuario cuando algo falla
++        # salian ilegibles. Con un StreamWriter se elige UTF-8 sin BOM.
++        # OJO: .NET no comparte el directorio actual con PowerShell, asi que
++        # una ruta relativa iria a parar a otro sitio. Se absolutiza antes.
+         if ($log) {
+-            & $exe @argumentos 2>&1 |
+-                Where-Object { & $util $_ } |
+-                Tee-Object -FilePath $log -Append | ForEach-Object { Detalle $_ }
+-        } else {
+-            & $exe @argumentos 2>&1 |
+-                Where-Object { & $util $_ } | ForEach-Object { Detalle $_ }
++            $rutaLog = $log
++            if (-not [System.IO.Path]::IsPathRooted($rutaLog)) {
++                $rutaLog = Join-Path (Get-Location).ProviderPath $rutaLog
++            }
++            $escritor = New-Object System.IO.StreamWriter($rutaLog, $true, (New-Object System.Text.UTF8Encoding($false)))
+         }
++        # winget y pip dibujan barras y ruedas de progreso que, sin terminal
++        # interactiva, salen como cientos de lineas de basura. Se descartan las
++        # que no llevan ninguna letra ni digito. Se quitan tambien los bytes
++        # nulos por si algun programa escribe en UTF-16 al verse redirigido.
++        $texto = { param($l) ("$l" -replace "`0", '') }
++        $util = { param($t) $t.Trim() -ne '' -and $t -match '[A-Za-z0-9]' }
++        & $exe @argumentos 2>&1 |
++            ForEach-Object { & $texto $_ } |
++            Where-Object { & $util $_ } |
++            ForEach-Object {
++                if ($escritor) { $escritor.WriteLine($_) }
++                Detalle $_
++            }
+         return $LASTEXITCODE
+     } finally {
++        if ($escritor) { $escritor.Dispose() }
+         $ErrorActionPreference = $anterior
+     }
+ }
+ 
++# Como Ejecutar, pero con tope de tiempo y sin capturar la salida. Se usa con
++# instaladores: si uno se queda esperando una ventana que nadie llega a ver
++# -el caso tipico es el aviso de permisos de administrador en un equipo donde
++# no se pueden conceder- colgaria la instalacion entera para siempre. Devuelve
++# $true si el programa termino solo y $false si hubo que cerrarlo.
++function Ejecutar-Con-Limite([string]$exe, [string[]]$argumentos, [int]$segundos) {
++    Escribir-Registro "> $exe $($argumentos -join ' ')  (tope $segundos s)"
++    $p = Start-Process -FilePath $exe -ArgumentList $argumentos -PassThru -WindowStyle Hidden
++    if ($p.WaitForExit($segundos * 1000)) {
++        $codigo = $null
++        try { $codigo = $p.ExitCode } catch { }
++        Escribir-Registro "  termino con el codigo $codigo"
++        return $true
++    }
++    Escribir-Registro "  se paso de $segundos s: lo cierro"
++    try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch { }
++    return $false
++}
++
+ # Descarga con varios metodos en cascada.
+ #
+ # Invoke-WebRequest a secas NO vale para ficheros grandes en Windows PowerShell
+@@ -148,14 +184,27 @@
+ # llega, y con los 60 MB de Tesseract la conexion se corta ("La conexion ha
+ # terminado de forma inesperada"). Por eso se intenta primero con curl.exe, que
+ # viene de serie en Windows 10 1803 y posteriores, y va escribiendo a disco.
++#
++# Se prueban todas las fuentes y, si ninguna responde, se espera un poco y se
++# repite la vuelta entera. Un corte de red de unos segundos -github cerrando la
++# conexion de golpe, por ejemplo- no deberia echar por tierra una instalacion
++# de quince minutos, y es un caso que pasa de verdad.
+ function Descargar([string[]]$urls, [string]$destino, [int]$minimoBytes) {
+     $motivos = @()
+-    foreach ($url in $urls) {
+-        $err = Descargar-Una $url $destino $minimoBytes
+-        if (-not $err) { return $null }
+-        $motivos += $err
++    $rondas = 2
++    for ($ronda = 1; $ronda -le $rondas; $ronda++) {
++        foreach ($url in $urls) {
++            $err = Descargar-Una $url $destino $minimoBytes
++            if (-not $err) { return $null }
++            $motivos += $err
++        }
++        if ($ronda -lt $rondas) {
++            Detalle 'No ha entrado la descarga. Espero 15 segundos y lo intento otra vez...'
++            Escribir-Registro '  ninguna fuente respondio: segunda ronda tras 15 s'
++            Start-Sleep -Seconds 15
++        }
+     }
+-    return ($motivos -join ' || ')
++    return (($motivos | Select-Object -Unique) -join ' || ')
+ }
+ 
+ function Descargar-Una([string]$url, [string]$destino, [int]$minimoBytes) {
+@@ -295,12 +344,6 @@
+ if ($script:raiz -like '*OneDrive*') { Aviso 'El proyecto esta dentro de OneDrive. Si algo falla, copialo a C:\pdfx y repite.' }
+ if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { Aviso 'Equipo ARM64: Tesseract correra emulado y el OCR ira mas lento.' }
+ 
+-# Restos de una compilacion de Linux: la entrega es copiando la carpeta, asi que
+-# es lo mas probable que se arrastren y rompen el resto del proceso.
+-foreach ($resto in @('dist\PDFX.zip', 'dist\PDFX.7z')) {
+-    if (Test-Path $resto) { Aviso "Hay un $resto de la version de Linux. No sirve en Windows; ignoralo o borralo." }
+-}
+-
+ try {
+     Invoke-WebRequest -Uri 'https://pypi.org' -Method Head -TimeoutSec 15 -UseBasicParsing | Out-Null
+     Bien 'Conexion a internet'
+@@ -448,6 +491,94 @@
+ 
+ if ($SoloTesseract -and $SoloCompilar) { $SoloCompilar = $false }
+ 
++# 7-Zip es la unica forma fiable de abrir el instalador de Tesseract, que por
++# dentro es un paquete NSIS. La alternativa -lanzar el instalador con /S- exige
++# permisos de administrador: sin ellos se queda esperando un aviso de permisos
++# que nadie ve, no extrae nada y deja la carpeta vacia. Eso era justo lo que
++# fallaba, y encima sin sintoma claro: el instalador devolvia codigo 0.
++#
++# Aqui se consigue un 7-Zip de usar y tirar SIN instalar nada y SIN pedir
++# permisos: se descarga el .msi oficial y se abre con "msiexec /a", que es una
++# copia administrativa (descomprime en una carpeta) y no una instalacion: no
++# toca el registro, no crea desinstalador y no dispara ningun aviso. Por eso
++# funciona tambien en los ordenadores de empresa que lo tienen todo bloqueado.
++function Obtener-7Zip {
++    # 1) El que ya haya en el equipo, incluida una copia previa nuestra.
++    $candidatos = @(
++        (Join-Path $script:raiz 'tools\7zip\7z.exe'),
++        "$env:ProgramFiles\7-Zip\7z.exe",
++        "${env:ProgramFiles(x86)}\7-Zip\7z.exe",
++        "$env:LOCALAPPDATA\Programs\7-Zip\7z.exe"
++    )
++    foreach ($clave in @('HKLM:\SOFTWARE\7-Zip', 'HKCU:\SOFTWARE\7-Zip')) {
++        try {
++            $instalado = (Get-ItemProperty -Path $clave -Name Path -ErrorAction Stop).Path
++            if ($instalado) { $candidatos += (Join-Path $instalado '7z.exe') }
++        } catch { }
++    }
++    $enPath = Get-Command 7z.exe -ErrorAction SilentlyContinue
++    if ($enPath) { $candidatos += $enPath.Source }
++
++    foreach ($ruta in $candidatos) {
++        if ($ruta -and (Test-Path $ruta)) {
++            Escribir-Registro "7-Zip encontrado en $ruta"
++            return $ruta
++        }
++    }
++
++    # 2) No hay ninguno: se trae una copia portable. Queda guardada en
++    #    tools\7zip, asi que esto solo ocurre la primera vez.
++    Detalle 'No hay 7-Zip en el equipo: consiguiendo una copia portable (2 MB)...'
++    $sufijo = ''
++    if ([Environment]::Is64BitOperatingSystem) { $sufijo = '-x64' }
++    $urls = @()
++    foreach ($v in @('2501', '2409', '2408', '2301')) {
++        $urls += "https://www.7-zip.org/a/7z$v$sufijo.msi"
++    }
++    $msi = Join-Path $env:TEMP 'pdfx-7zip.msi'
++    $err = Descargar $urls $msi (500KB)
++    if ($err) {
++        Escribir-Registro "no pude descargar 7-Zip: $err"
++        return $null
++    }
++
++    $extraido = Join-Path $env:TEMP 'pdfx-7zip-msi'
++    Remove-Item -Recurse -Force $extraido -ErrorAction SilentlyContinue
++    $termino = Ejecutar-Con-Limite 'msiexec.exe' @('/a', "`"$msi`"", '/qn', "TARGETDIR=`"$extraido`"") 300
++    Remove-Item -Force $msi -ErrorAction SilentlyContinue
++    if (-not $termino) {
++        Escribir-Registro 'msiexec se quedo colgado extrayendo 7-Zip'
++        return $null
++    }
++
++    # Se busca el binario en vez de suponer donde cae: depende de la version.
++    $origen = Get-ChildItem -Path $extraido -Filter '7z.exe' -Recurse -File -ErrorAction SilentlyContinue |
++              Select-Object -First 1
++    if (-not $origen) {
++        Escribir-Registro 'el .msi de 7-Zip no contenia 7z.exe'
++        Remove-Item -Recurse -Force $extraido -ErrorAction SilentlyContinue
++        return $null
++    }
++
++    # 7z.exe no funciona solo: necesita 7z.dll al lado. Se copia la carpeta
++    # entera y luego se quitan la ayuda y las traducciones, que sobran.
++    $destino7z = Join-Path $script:raiz 'tools\7zip'
++    Remove-Item -Recurse -Force $destino7z -ErrorAction SilentlyContinue
++    New-Item -ItemType Directory -Force -Path $destino7z | Out-Null
++    Copy-Item -Path (Join-Path $origen.DirectoryName '*') -Destination $destino7z -Recurse -Force
++    Remove-Item -Recurse -Force (Join-Path $destino7z 'Lang') -ErrorAction SilentlyContinue
++    Remove-Item -Force (Join-Path $destino7z '7-zip.chm') -ErrorAction SilentlyContinue
++    Remove-Item -Recurse -Force $extraido -ErrorAction SilentlyContinue
++
++    $final = Join-Path $destino7z '7z.exe'
++    if (Test-Path $final) {
++        Bien 'Copia portable de 7-Zip lista (no se ha instalado nada)'
++        return $final
++    }
++    Escribir-Registro 'no consegui dejar 7z.exe en tools\7zip'
++    return $null
++}
++
+ # ------------------------------------------------------------- 4. Tesseract
+ 
+ $tessDir = Join-Path $script:raiz 'tools\tesseract'
+@@ -515,25 +646,37 @@
+         $borrarInstalador = ($instalador -like "$env:TEMP*")
+ 
+         # Carpeta de paso SIN espacios: el instalador NSIS trata /D= de forma
+-        # especial y una ruta entrecomillada le sienta mal.
++        # especial y una ruta entrecomillada le sienta mal. Si el equipo no
++        # deja crear carpetas en la raiz del disco, se cae a la temporal.
+         $paso = Join-Path $env:SystemDrive 'pdfx-tess-tmp'
+-        Remove-Item -Recurse -Force $paso -ErrorAction SilentlyContinue
+-        New-Item -ItemType Directory -Force -Path $paso | Out-Null
+-
+-        $sevenZip = @("$env:ProgramFiles\7-Zip\7z.exe", "${env:ProgramFiles(x86)}\7-Zip\7z.exe") |
+-                    Where-Object { Test-Path $_ } | Select-Object -First 1
++        try {
++            Remove-Item -Recurse -Force $paso -ErrorAction SilentlyContinue
++            New-Item -ItemType Directory -Force -Path $paso -ErrorAction Stop | Out-Null
++        } catch {
++            $paso = Join-Path $env:TEMP 'pdfx-tess-tmp'
++            Remove-Item -Recurse -Force $paso -ErrorAction SilentlyContinue
++            New-Item -ItemType Directory -Force -Path $paso | Out-Null
++        }
++        Escribir-Registro "carpeta de paso: $paso"
++
++        # Con 7-Zip la extraccion es un descomprimido normal: ni permisos, ni
++        # ventanas, ni nada que se pueda quedar colgado.
++        $sevenZip = Obtener-7Zip
++        $ocrExtraido = $false
+         if ($sevenZip) {
+-            Detalle 'Extrayendo con 7-Zip...'
++            Detalle 'Extrayendo el OCR con 7-Zip...'
+             $rc = Ejecutar $sevenZip @('x', $instalador, "-o$paso", '-y') $script:registro
+-            if ($rc -gt 1) { $sevenZip = $null }   # 1 es solo aviso
++            if ($rc -le 1) { $ocrExtraido = $true }   # 1 es solo aviso
++            else { Escribir-Registro "7-Zip devolvio $rc" }
+         }
+-        if (-not $sevenZip) {
+-            Detalle 'Extrayendo con el instalador...'
+-            $p = Start-Process -FilePath $instalador -ArgumentList '/S', "/D=$paso" -Wait -PassThru
+-            if ($p.ExitCode -ne 0) {
+-                Fallar '4 de 7 - extraer el OCR' "el instalador de Tesseract termino con el codigo $($p.ExitCode)" @(
+-                    'Instala 7-Zip (https://www.7-zip.org) y vuelve a ejecutar INSTALAR_PDFX.bat.'
+-                ) ''
++
++        # Ultimo recurso: el propio instalador en modo silencioso. Solo sirve
++        # con permisos de administrador, y por eso lleva tope de tiempo: sin
++        # ellos se queda esperando un aviso invisible hasta el fin de los dias.
++        if (-not $ocrExtraido) {
++            Detalle 'Extrayendo con el propio instalador (puede pedir permisos)...'
++            if (-not (Ejecutar-Con-Limite $instalador @('/S', "/D=$paso") 600)) {
++                Aviso 'El instalador del OCR se quedo colgado y he tenido que cerrarlo.'
+             }
+         }
+ 
+@@ -542,8 +685,14 @@
+                       Select-Object -First 1
+         if (-not $encontrado) {
+             Fallar '4 de 7 - extraer el OCR' 'no encuentro tesseract.exe en lo extraido' @(
+-                'Instala 7-Zip (https://www.7-zip.org) y vuelve a ejecutar INSTALAR_PDFX.bat.'
+-            ) ''
++                'Hace falta 7-Zip para abrir el instalador del OCR y no he podido conseguirlo.',
++                'Comprueba la conexion y vuelve a ejecutar INSTALAR_PDFX.bat.',
++                'Si tu red bloquea www.7-zip.org, instala 7-Zip a mano desde',
++                '  https://www.7-zip.org  y repite.',
++                'Si no puedes instalar nada en este equipo, copia 7z.exe y 7z.dll',
++                'de otro ordenador que tenga 7-Zip a esta carpeta y repite:',
++                "  $(Join-Path $script:raiz 'tools\7zip')"
++            ) $script:registro
+         }
+ 
+         Remove-Item -Recurse -Force $tessDir -ErrorAction SilentlyContinue
+@@ -569,9 +718,12 @@
+         foreach ($sobra in $inutiles) {
+             Remove-Item -Recurse -Force (Join-Path $tessDir $sobra) -ErrorAction SilentlyContinue
+         }
+-        # Los manuales en HTML tampoco pintan nada en un portable.
++        # Los manuales en HTML tampoco pintan nada en un portable, ni los .jar
++        # del visor ScrollView, que solo se usa depurando y necesita Java.
+         Get-ChildItem $tessDir -Filter '*.html' -ErrorAction SilentlyContinue |
+             Remove-Item -Force -ErrorAction SilentlyContinue
++        Get-ChildItem (Join-Path $tessDir 'tessdata') -Filter '*.jar' -ErrorAction SilentlyContinue |
++            Remove-Item -Force -ErrorAction SilentlyContinue
+ 
+         if (-not (Test-Path $tessExe)) {
+             Fallar '4 de 7 - extraer el OCR' 'tesseract.exe no quedo en tools\tesseract' @('Vuelve a ejecutar INSTALAR_PDFX.bat.') ''
+@@ -624,10 +776,19 @@
+ 
+ Paso '[5 de 7] Compilando PDFX.exe (tarda unos 5 minutos)'
+ 
+-foreach ($sobra in @('build\build', 'dist\PDFX')) {
++# Cada plataforma deja su portable en su propia carpeta. Si Windows y Linux
++# escribieran los dos en dist\PDFX, compilar para una borraria el portable de
++# la otra, y este proyecto esta hecho para construir las dos desde el mismo
++# sitio. Lo que si se comparte es todo lo que importa: el codigo, el .spec,
++# las pruebas y los requisitos.
++$distPlataforma = 'dist\windows'
++$portable       = 'dist\windows\PDFX'
++$trabajoPy      = 'build\build-windows'
++
++foreach ($sobra in @($trabajoPy, $portable)) {
+     Remove-Item -Recurse -Force $sobra -ErrorAction SilentlyContinue
+ }
+-if (Test-Path 'dist\PDFX\PDFX.exe') {
++if (Test-Path "$portable\PDFX.exe") {
+     Fallar '5 de 7 - compilar' 'no puedo borrar la compilacion anterior' @(
+         'Tienes PDFX.exe abierto. Cierralo y vuelve a ejecutar INSTALAR_PDFX.bat.'
+     ) ''
+@@ -636,8 +797,8 @@
+ $logBuild = Join-Path $script:carpetaLogs 'log-pyinstaller.txt'
+ Remove-Item $logBuild -Force -ErrorAction SilentlyContinue
+ $rc = Ejecutar $pythonVenv @('-m', 'PyInstaller', 'build\pdfx.spec', '--noconfirm',
+-                             '--distpath', 'dist', '--workpath', 'build\build') $logBuild
+-if ($rc -ne 0 -or -not (Test-Path 'dist\PDFX\PDFX.exe')) {
++                             '--distpath', $distPlataforma, '--workpath', $trabajoPy) $logBuild
++if ($rc -ne 0 -or -not (Test-Path "$portable\PDFX.exe")) {
+     Fallar '5 de 7 - compilar' 'PyInstaller no genero PDFX.exe' @(
+         'Suele ser el antivirus bloqueando la escritura. Desactivalo un momento y repite.',
+         'Tambien puede ser una ruta demasiado larga: copia el proyecto a C:\pdfx y repite.'
+@@ -650,8 +811,8 @@
+ Paso '[6 de 7] Preparando la carpeta para la memoria USB'
+ 
+ if (Test-Path $tessExe) {
+-    New-Item -ItemType Directory -Force -Path 'dist\PDFX\tools' | Out-Null
+-    Copy-Item -Recurse -Force $tessDir 'dist\PDFX\tools\'
++    New-Item -ItemType Directory -Force -Path "$portable\tools" | Out-Null
++    Copy-Item -Recurse -Force $tessDir "$portable\tools\"
+     Bien 'OCR copiado dentro de la carpeta'
+ } else {
+     Aviso 'La carpeta va SIN OCR: los PDF escaneados saldran vacios.'
+@@ -672,7 +833,7 @@
+     'echo.',
+     'if errorlevel 1 (echo ALGO HA FALLADO. El motivo esta mas arriba.) else (echo Hecho. Los .md estan junto a cada PDF.)',
+     'pause'
+-) 'dist\PDFX\ARRASTRA_AQUI_TUS_PDF.bat'
++) "$portable\ARRASTRA_AQUI_TUS_PDF.bat"
+ 
+ Texto-Windows @(
+     'PDFX - convertir PDF a Markdown, Word y Excel',
+@@ -715,7 +876,7 @@
+     '----------------------------------',
+     'Falta la carpeta  tools  o esta incompleta. Vuelve a',
+     'copiar la carpeta PDFX entera desde el origen.'
+-) 'dist\PDFX\LEEME_PRIMERO.txt'
++) "$portable\LEEME_PRIMERO.txt"
+ 
+ Bien 'Carpeta preparada'
+ 
+@@ -724,22 +885,29 @@
+ Paso '[7 de 7] Comprobando que lo compilado funciona'
+ 
+ $fallos = @()
+-$consolaExe = 'dist\PDFX\PDFX-consola.exe'
++$consolaExe = "$portable\PDFX-consola.exe"
+ 
+-if (-not (Test-Path 'dist\PDFX\PDFX.exe')) { $fallos += 'falta PDFX.exe' }
+-elseif ((Get-Item 'dist\PDFX\PDFX.exe').Length -lt 1MB) { $fallos += 'PDFX.exe tiene un tamano imposible' }
++if (-not (Test-Path "$portable\PDFX.exe")) { $fallos += 'falta PDFX.exe' }
++elseif ((Get-Item "$portable\PDFX.exe").Length -lt 1MB) { $fallos += 'PDFX.exe tiene un tamano imposible' }
+ if (-not (Test-Path $consolaExe)) { $fallos += 'falta PDFX-consola.exe (el .spec no se actualizo)' }
+-if (-not (Test-Path 'dist\PDFX\_internal\base_library.zip')) { $fallos += 'falta _internal\base_library.zip' }
+-if (-not (Get-ChildItem 'dist\PDFX\_internal' -Filter '_tkinter*.pyd' -ErrorAction SilentlyContinue)) {
++if (-not (Test-Path "$portable\_internal\base_library.zip")) { $fallos += 'falta _internal\base_library.zip' }
++# _tkinter no cae siempre en la raiz de _internal: en Linux con Python 3.13,
++# PyInstaller lo mete en _internal/python3.13/lib-dynload/. En Windows hoy si
++# esta en la raiz, pero se busca en el arbol para que un cambio de version no
++# de por rota una compilacion que en realidad esta bien.
++if (-not (Get-ChildItem "$portable\_internal" -Filter '_tkinter*.pyd' -Recurse -ErrorAction SilentlyContinue)) {
+     $fallos += 'falta _tkinter: la ventana no abriria'
+ }
+-if (-not (Test-Path 'dist\PDFX\_internal\_tk_data')) { $fallos += 'faltan los datos de Tk: la ventana no abriria' }
++# Los datos de Tcl/Tk cambian de nombre segun la version: _tk_data, tk8.6...
++$tkDatos = @('_tk_data', 'tk8.6', 'tk8.7', 'tk') |
++           Where-Object { Test-Path (Join-Path "$portable\_internal" $_) }
++if (-not $tkDatos) { $fallos += 'faltan los datos de Tk: la ventana no abriria' }
+ 
+-if (Test-Path 'dist\PDFX\tools\tesseract\tesseract.exe') {
++if (Test-Path "$portable\tools\tesseract\tesseract.exe") {
+     foreach ($l in $idiomas) {
+-        if (-not (Test-Path "dist\PDFX\tools\tesseract\tessdata\$l.traineddata")) { $fallos += "falta el idioma $l del OCR" }
++        if (-not (Test-Path "$portable\tools\tesseract\tessdata\$l.traineddata")) { $fallos += "falta el idioma $l del OCR" }
+     }
+-    if (-not (Test-Path 'dist\PDFX\tools\tesseract\msvcp140.dll')) {
++    if (-not (Test-Path "$portable\tools\tesseract\msvcp140.dll")) {
+         Aviso 'No he podido incluir msvcp140.dll; en un equipo sin Visual C++ el OCR podria no arrancar.'
+     }
+ } else {
+@@ -787,7 +955,7 @@
+ 
+ # ------------------------------------------------------------------- final
+ 
+-$destino = (Resolve-Path 'dist\PDFX').Path
++$destino = (Resolve-Path $portable).Path
+ $ficheros = Get-ChildItem $destino -Recurse -File -Force
+ $tamMB = [math]::Round((($ficheros | Measure-Object Length -Sum).Sum) / 1MB)
+ 
+--- a/build/obtener_tesseract.ps1
++++ b/build/obtener_tesseract.ps1
+@@ -1,49 +1,23 @@
+-# Descarga Tesseract portable para Windows y deja solo lo necesario.
+-#   powershell -ExecutionPolicy Bypass -File build\obtener_tesseract.ps1
++# Deja el OCR Tesseract portable en tools\tesseract.
+ #
+-# Requiere conexion UNA sola vez, en la maquina donde se compila.
+-# El resultado (tools\tesseract) se distribuye con el ejecutable y ya no
+-# necesita internet nunca mas.
+-$ErrorActionPreference = "Stop"
+-Set-Location (Join-Path $PSScriptRoot "..")
+-
+-$dest = "tools\tesseract"
+-$version = "5.4.0.20240606"
+-$url = "https://github.com/UB-Mannheim/tesseract/releases/download/v$version/tesseract-ocr-w64-setup-$version.exe"
+-$tmp = Join-Path $env:TEMP "tesseract-setup.exe"
+-
+-Write-Host "Descargando Tesseract $version ..." -ForegroundColor Cyan
+-Invoke-WebRequest -Uri $url -OutFile $tmp
+-
+-# El instalador es un NSIS: 7-Zip puede extraerlo sin instalar nada.
+-$sevenZip = @(
+-    "$env:ProgramFiles\7-Zip\7z.exe",
+-    "${env:ProgramFiles(x86)}\7-Zip\7z.exe"
+-) | Where-Object { Test-Path $_ } | Select-Object -First 1
+-
+-New-Item -ItemType Directory -Force -Path $dest | Out-Null
+-
+-if ($sevenZip) {
+-    Write-Host "Extrayendo con 7-Zip ..." -ForegroundColor Cyan
+-    & $sevenZip x $tmp "-o$dest" -y | Out-Null
+-} else {
+-    Write-Host "7-Zip no encontrado: se instalara en una carpeta temporal." -ForegroundColor Yellow
+-    $stage = Join-Path $env:TEMP "tess-stage"
+-    & $tmp /S "/D=$stage" | Out-Null
+-    Start-Sleep -Seconds 5
+-    Copy-Item -Recurse -Force "$stage\*" $dest
+-    Remove-Item -Recurse -Force $stage -ErrorAction SilentlyContinue
++#   powershell -NoProfile -ExecutionPolicy Bypass -File build\obtener_tesseract.ps1
++#
++# Aqui no hay logica a proposito. La descarga y la extraccion del OCR viven en
++# setup-pdfx-windows.ps1 y solo ahi: este fichero llego a tener su propia copia
++# y se quedo atras, con el fallo que dejaba tools\tesseract vacia porque
++# intentaba abrir el instalador NSIS ejecutandolo, cosa que exige permisos de
++# administrador. Mantener una sola version evita que vuelva a pasar.
++$ErrorActionPreference = 'Stop'
++
++$principal = Join-Path $PSScriptRoot 'setup-pdfx-windows.ps1'
++if (-not (Test-Path $principal)) {
++    Write-Host ''
++    Write-Host '  No encuentro setup-pdfx-windows.ps1 al lado de este script.' -ForegroundColor Red
++    Write-Host '  Ejecutalo desde la carpeta del proyecto:'
++    Write-Host '    powershell -NoProfile -ExecutionPolicy Bypass -File build\obtener_tesseract.ps1'
++    Write-Host ''
++    exit 1
+ }
+ 
+-# Quitar idiomas que no se usan para no arrastrar 300 MB de mas.
+-$keep = @("spa", "eng", "osd")
+-Get-ChildItem "$dest\tessdata" -Filter *.traineddata -ErrorAction SilentlyContinue |
+-    Where-Object { $keep -notcontains $_.BaseName } |
+-    Remove-Item -Force
+-Remove-Item -Recurse -Force "$dest\tessdata\script" -ErrorAction SilentlyContinue
+-Remove-Item -Recurse -Force "$dest\doc" -ErrorAction SilentlyContinue
+-Remove-Item -Force $tmp -ErrorAction SilentlyContinue
+-
+-$size = "{0:N0} MB" -f ((Get-ChildItem -Recurse $dest | Measure-Object Length -Sum).Sum / 1MB)
+-Write-Host "Tesseract portable listo en $dest ($size)" -ForegroundColor Green
+-Write-Host "Idiomas: $($keep -join ', ')  (anade mas .traineddata en tools\tesseract\tessdata)"
++& $principal -SoloTesseract @args
++exit $LASTEXITCODE
+--- a/build/obtener_tesseract.sh
++++ b/build/obtener_tesseract.sh
+@@ -1,39 +1,12 @@
+ #!/usr/bin/env bash
+-# Descarga Tesseract portable para Linux (AppImage) y lo deja en tools/.
++# Deja el OCR Tesseract portable en tools/tesseract-linux.
++#
++#   ./build/obtener_tesseract.sh
++#
++# Aqui no hay logica a proposito. La descarga y la extraccion del OCR viven en
++# setup-pdfx-linux.sh y solo ahi: mantener dos copias de lo mismo es como el
++# lado de Windows acabo arrastrando un fallo que dejaba la carpeta del OCR
++# vacia sin que nadie se diera cuenta.
+ set -euo pipefail
+-cd "$(dirname "$0")/.."
+-
+-VER="${TESSERACT_VERSION:-5.5.1}"
+-URL="https://github.com/AlexanderP/tesseract-appimage/releases/download/v${VER}/tesseract-${VER}-x86_64.AppImage"
+-DEST="tools/tesseract-linux"
+-TMP="$(mktemp -d)"
+-trap 'rm -rf "$TMP"' EXIT
+-
+-echo "Descargando Tesseract ${VER} ..."
+-curl -fsSL -o "$TMP/tess.AppImage" "$URL"
+-chmod +x "$TMP/tess.AppImage"
+-
+-echo "Extrayendo ..."
+-(cd "$TMP" && ./tess.AppImage --appimage-extract >/dev/null)
+-SR="$TMP/squashfs-root"
+-
+-rm -rf "$DEST"
+-mkdir -p "$DEST/lib" "$DEST/tessdata"
+-cp "$SR/usr/bin/tesseract" "$DEST/"
+-cp "$SR/ld-linux-x86-64.so.2" "$DEST/"
+-cp -a "$SR/usr/lib/." "$DEST/lib/"
+-for lang in ${TESSERACT_LANGS:-spa eng osd}; do
+-  cp "$SR/usr/share/tesseract-ocr/5/tessdata/${lang}.traineddata" "$DEST/tessdata/"
+-done
+-
+-# El AppImage trae su propia libc: hay que arrancarlo con su cargador.
+-cat > "$DEST/tesseract.sh" <<'LAUNCH'
+-#!/bin/sh
+-D="$(cd "$(dirname "$0")" && pwd)"
+-export TESSDATA_PREFIX="$D/tessdata"
+-exec "$D/ld-linux-x86-64.so.2" --library-path "$D/lib" "$D/tesseract" "$@"
+-LAUNCH
+-chmod +x "$DEST/tesseract.sh"
+-
+-echo "Listo: $DEST ($(du -sh "$DEST" | cut -f1))"
+-"$DEST/tesseract.sh" --list-langs
++DIR="$(cd "$(dirname "$0")" && pwd)"
++exec bash "$DIR/setup-pdfx-linux.sh" --solo-ocr "$@"
+--- a/build/construir_linux.sh
++++ b/build/construir_linux.sh
+@@ -1,32 +1,11 @@
+ #!/usr/bin/env bash
+-# Construye la version portable para Linux.
++# Construye la version portable para Linux y la deja en dist/PDFX.
++#
+ #   ./build/construir_linux.sh
++#
++# Delega en setup-pdfx-linux.sh, que ademas comprueba el equipo, prepara el
++# entorno, trae el OCR y verifica que lo compilado funciona de verdad. Antes
++# esto era un script aparte que solo empaquetaba y no comprobaba nada.
+ set -euo pipefail
+-cd "$(dirname "$0")/.."
+-
+-PY="${PYTHON:-.venv/bin/python}"
+-echo "== Limpiando =="
+-rm -rf build/build dist/PDFX
+-
+-echo "== Empaquetando con PyInstaller =="
+-"$PY" -m PyInstaller build/pdfx.spec --noconfirm \
+-      --distpath dist --workpath build/build
+-
+-echo "== Copiando Tesseract portable =="
+-if [ -d tools/tesseract-linux ]; then
+-  mkdir -p dist/PDFX/tools
+-  cp -a tools/tesseract-linux dist/PDFX/tools/
+-else
+-  echo "   (aviso) no hay tools/tesseract-linux; ejecuta build/obtener_tesseract.sh"
+-fi
+-
+-cp README.md dist/PDFX/ 2>/dev/null || true
+-cat > dist/PDFX/EJECUTAR.sh <<'LAUNCH'
+-#!/bin/sh
+-cd "$(dirname "$0")" && exec ./PDFX "$@"
+-LAUNCH
+-chmod +x dist/PDFX/EJECUTAR.sh
+-
+-echo
+-echo "Listo: dist/PDFX  ($(du -sh dist/PDFX | cut -f1))"
+-echo "Comprime la carpeta y ya es portable."
++DIR="$(cd "$(dirname "$0")" && pwd)"
++exec bash "$DIR/setup-pdfx-linux.sh" "$@"
+--- a/README.md
++++ b/README.md
+@@ -46,12 +46,16 @@
+ Se encarga de todo: comprueba el equipo, instala Python 3.12 si no está (sólo
+ para tu usuario, sin permisos de administrador), crea el entorno, descarga el
+ OCR Tesseract con los idiomas español e inglés, compila el ejecutable,
+-**verifica convirtiendo un PDF escaneado de prueba** y deja `dist\PDFX` lista.
++**verifica convirtiendo un PDF escaneado de prueba** y deja `dist\windows\PDFX` lista.
+ Al terminar ofrece copiarla a la memoria USB que tengas conectada.
+ 
+ Tarda entre 10 y 25 minutos y necesita internet **una sola vez**, en la máquina
+ que compila. El portable que sale ya no vuelve a necesitar red nunca.
+ 
++No hay que instalar nada antes. Para abrir el instalador del OCR hace falta
++7-Zip; si el equipo no lo tiene, el script se descarga una copia portable y la
++usa **sin instalarla**, así que tampoco hacen falta permisos de administrador.
++
+ > El `.bat` existe porque Windows no ejecuta ficheros `.ps1` con doble clic: los
+ > abre en el Bloc de notas. El `.bat` sólo lanza el PowerShell, no tiene lógica.
+ 
+@@ -68,14 +72,55 @@
+ Si algo falla, el motivo sale en pantalla y el detalle completo queda en
+ `build\registro-instalacion.txt`.
+ 
++### Un solo proyecto, un portable por plataforma
++
++Windows y Linux se construyen desde esta misma carpeta y **no se pisan**. Lo que
++importa es común —el código de `pdfx/`, el `.spec`, las pruebas y los
++requisitos—; sólo se separa lo que genera cada compilación:
++
++| | Windows | Linux |
++|---|---|---|
++| Entrada | `INSTALAR_PDFX.bat` | `INSTALAR_PDFX.sh` |
++| Portable | `dist/windows/PDFX` | `dist/linux/PDFX` |
++| Entorno | `.venv` | `.venv-linux` |
++| Trabajo de PyInstaller | `build/build-windows` | `build/build-linux` |
++| OCR | `tools/tesseract` | `tools/tesseract-linux` |
++| Registro | `build/registro-instalacion.txt` | `build/registro-instalacion-linux.txt` |
++
++En los dos casos la carpeta que se entrega se llama `PDFX`, así que el usuario
++final ve exactamente lo mismo en cualquiera de los dos sistemas.
++
+ ### Generar el portable de Linux
+ 
++Un solo paso, igual que en Windows:
++
++```bash
++./INSTALAR_PDFX.sh          # o bien:  bash INSTALAR_PDFX.sh
++```
++
++Hace lo mismo que su gemelo de Windows: comprueba el equipo, instala las piezas
++del sistema que falten (`python3-venv`, `python3-tk`, `binutils` — pedirá tu
++contraseña si hace falta), crea el entorno, descarga el OCR Tesseract con los
++idiomas español e inglés, compila, **verifica convirtiendo un PDF escaneado de
++prueba** y deja `dist/linux/PDFX` lista.
++
++Para el desarrollador, los mismos parámetros:
++
++```bash
++./INSTALAR_PDFX.sh
++#   --solo-ocr        descarga el OCR y para
++#   --solo-compilar   salta la descarga del OCR
++#   --sin-prueba      no ejecuta la prueba de conversión final
++#   --auto            sin preguntas ni pausas
++```
++
++`build/obtener_tesseract.sh` y `build/construir_linux.sh` siguen existiendo,
++pero ahora sólo delegan en el instalador: la lógica vive en un único sitio.
++
++Para llevártela comprimida:
++
+ ```bash
+-python -m venv .venv
+-.venv/bin/pip install -r requirements-dev.txt
+-./build/obtener_tesseract.sh     # OCR portable, sólo una vez
+-.venv/bin/python -m pytest       # comprobar que todo va
+-./build/construir_linux.sh       # deja dist/PDFX
++cd dist/linux && zip -r ../PDFX-portable-linux.zip PDFX
+ ```
+ 
+ ---
+--- /dev/null
++++ b/INSTALAR_PDFX.sh
+@@ -0,0 +1,13 @@
++#!/usr/bin/env sh
++# Lanzador de la instalacion de PDFX para Linux.
++# Ejecutalo y no hace falta nada mas:
++#   ./INSTALAR_PDFX.sh          (o bien:  bash INSTALAR_PDFX.sh)
++#
++# Es el gemelo de INSTALAR_PDFX.bat. No tiene logica: solo llama al script
++# real, que esta en build/setup-pdfx-linux.sh.
++cd "$(dirname "$0")" || exit 1
++echo ""
++echo "  Preparando PDFX. Esto tarda entre 10 y 25 minutos."
++echo "  No cierres esta ventana."
++echo ""
++exec bash build/setup-pdfx-linux.sh "$@"
+--- /dev/null
++++ b/build/setup-pdfx-linux.sh
+@@ -0,0 +1,713 @@
++#!/usr/bin/env bash
++#
++# Prepara la carpeta portable de PDFX para Linux, de principio a fin.
++#
++# Es el gemelo de build/setup-pdfx-windows.ps1: los mismos 7 pasos, los mismos
++# mensajes y la misma autoprueba final. No hay que ejecutar nada mas ni tocar
++# nada a mano.
++#
++#   ./INSTALAR_PDFX.sh                (o: bash INSTALAR_PDFX.sh)
++#
++# Para el desarrollador:
++#   --solo-ocr       descarga el OCR y para
++#   --solo-compilar  salta la descarga del OCR
++#   --sin-prueba     no ejecuta la prueba de conversion final
++#   --auto           sin preguntas ni pausas
++#
++# Todo el fichero es ASCII puro y sin tildes a proposito, igual que el de
++# Windows: no se puede dar por hecha la configuracion regional del terminal.
++
++set -uo pipefail
++
++SOLO_OCR=0
++SOLO_COMPILAR=0
++SIN_PRUEBA=0
++AUTO=0
++for arg in "$@"; do
++    case "$arg" in
++        --solo-ocr)       SOLO_OCR=1 ;;
++        --solo-compilar)  SOLO_COMPILAR=1 ;;
++        --sin-prueba)     SIN_PRUEBA=1 ;;
++        --auto)           AUTO=1 ;;
++        -h|--help)        sed -n '2,20p' "$0"; exit 0 ;;
++        *) echo "  Opcion desconocida: $arg"; exit 2 ;;
++    esac
++done
++[ "$SOLO_OCR" = 1 ] && SOLO_COMPILAR=0
++
++# ---------------------------------------------------------------- utilidades
++
++RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++cd "$RAIZ" || { echo "  No encuentro la carpeta del proyecto."; exit 1; }
++if [ ! -d "$RAIZ/pdfx" ]; then
++    echo ""
++    echo "  No encuentro la carpeta del proyecto (falta pdfx/)."
++    echo "  Ejecuta el instalador desde la carpeta del proyecto:"
++    echo "    ./INSTALAR_PDFX.sh"
++    echo ""
++    exit 1
++fi
++
++CARPETA_LOGS="$RAIZ/build"
++REGISTRO="$CARPETA_LOGS/registro-instalacion-linux.txt"
++AVISOS=()
++
++# Cada plataforma deja lo suyo en su propia carpeta. Windows y Linux se
++# construyen desde el mismo proyecto, asi que si los dos escribieran en
++# dist/PDFX, .venv y build/build, compilar para uno borraria el portable del
++# otro. Lo que si se comparte es lo que importa: el codigo, el .spec, las
++# pruebas y los requisitos.
++DIST_PLATAFORMA="$RAIZ/dist/linux"
++PORTABLE="$DIST_PLATAFORMA/PDFX"
++TRABAJO_PY="$RAIZ/build/build-linux"
++
++# Color solo si la salida es un terminal de verdad; si se redirige a un
++# fichero, los codigos de escape solo estorban.
++if [ -t 1 ] && [ "${TERM:-dumb}" != "dumb" ]; then
++    C_CYAN=$'\033[36m'; C_VERDE=$'\033[32m'; C_AMAR=$'\033[33m'
++    C_ROJO=$'\033[31m'; C_GRIS=$'\033[90m'; C_FIN=$'\033[0m'
++else
++    C_CYAN=''; C_VERDE=''; C_AMAR=''; C_ROJO=''; C_GRIS=''; C_FIN=''
++fi
++
++registro() { printf '%s\n' "$*" >> "$REGISTRO" 2>/dev/null || true; }
++
++pausar() {
++    [ "$AUTO" = 1 ] && return 0
++    [ -t 0 ] || return 0
++    echo ""
++    read -r -p "  Pulsa Intro para cerrar" _ || true
++}
++
++paso()    { echo ""; echo "  ${C_CYAN}$*${C_FIN}"; registro ""; registro "=== $* ==="; }
++bien()    { echo "     ${C_VERDE}[OK] $*${C_FIN}"; registro "[OK] $*"; }
++aviso()   { echo "     ${C_AMAR}[!]  $*${C_FIN}"; registro "[!] $*"; AVISOS+=("$*"); }
++detalle() { echo "          ${C_GRIS}$*${C_FIN}"; }
++
++fallar() {
++    local paso_fallo="$1" motivo="$2" log="$3"; shift 3
++    echo ""
++    echo "  ${C_ROJO}--------------------------------------------------------${C_FIN}"
++    echo "  ${C_ROJO}   HA FALLADO. PDFX no se ha podido preparar.${C_FIN}"
++    echo "  ${C_ROJO}--------------------------------------------------------${C_FIN}"
++    echo ""
++    echo "     Paso que fallo : $paso_fallo"
++    echo "     Motivo         : $motivo"
++    registro "FALLO en $paso_fallo : $motivo"
++    if [ "$#" -gt 0 ]; then
++        echo ""
++        echo "     Que puedes hacer:"
++        for c in "$@"; do echo "       - $c"; done
++    fi
++    if [ -n "$log" ] && [ -f "$log" ]; then
++        echo ""
++        echo "     Ultimas lineas del detalle tecnico:"
++        tail -n 25 "$log" | while IFS= read -r l; do echo "       ${C_GRIS}${l}${C_FIN}"; done
++    fi
++    echo ""
++    echo "     Si vuelve a fallar, envia este fichero a quien te dio el programa:"
++    echo "       $REGISTRO"
++    echo ""
++    pausar
++    exit 1
++}
++
++# Ejecuta un programa mostrando su salida segun llega y devolviendo su codigo.
++# Se usa PIPESTATUS porque el codigo que interesa es el del primer eslabon de
++# la tuberia, no el del sed que solo sangra las lineas.
++ejecutar() {
++    local log="$1"; shift
++    registro "> $*"
++    if [ -n "$log" ]; then
++        "$@" 2>&1 | tee -a "$log" | sed "s/^/          ${C_GRIS}/;s/\$/${C_FIN}/"
++    else
++        "$@" 2>&1 | sed "s/^/          ${C_GRIS}/;s/\$/${C_FIN}/"
++    fi
++    return "${PIPESTATUS[0]}"
++}
++
++# Descarga probando varias fuentes y, si ninguna responde, repite la vuelta
++# entera tras una espera corta. Un corte de red de unos segundos no deberia
++# echar por tierra una instalacion de quince minutos.
++descargar() {
++    local destino="$1" minimo="$2"; shift 2
++    local urls=("$@") motivos=() ronda url rc n
++    for ronda in 1 2; do
++        for url in "${urls[@]}"; do
++            registro "descargando $url"
++            rm -f "$destino"
++            if command -v curl >/dev/null 2>&1; then
++                curl -fsSL --retry 3 --retry-delay 2 --connect-timeout 30 \
++                     --max-time 1800 -o "$destino" "$url" >>"$REGISTRO" 2>&1
++                rc=$?
++            elif command -v wget >/dev/null 2>&1; then
++                wget -q -O "$destino" "$url" >>"$REGISTRO" 2>&1
++                rc=$?
++            else
++                echo "no hay ni curl ni wget en el sistema"
++                return 1
++            fi
++            n=0
++            [ -f "$destino" ] && n=$(stat -c '%s' "$destino" 2>/dev/null || echo 0)
++            if [ "$rc" = 0 ] && [ "$n" -ge "$minimo" ]; then
++                return 0
++            fi
++            motivos+=("$url fallo (codigo $rc, $n bytes)")
++        done
++        if [ "$ronda" = 1 ]; then
++            detalle "No ha entrado la descarga. Espero 15 segundos y lo intento otra vez..."
++            registro "  ninguna fuente respondio: segunda ronda tras 15 s"
++            sleep 15
++        fi
++    done
++    rm -f "$destino"
++    printf '%s' "${motivos[*]}"
++    return 1
++}
++
++escribir_texto() {
++    local ruta="$1"; shift
++    printf '%s\n' "$@" > "$ruta"
++}
++
++# ---------------------------------------------------------------- cabecera
++
++mkdir -p "$CARPETA_LOGS"
++printf 'PDFX - instalacion iniciada %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" > "$REGISTRO"
++
++echo ""
++echo "  ${C_CYAN}========================================================${C_FIN}"
++echo "  ${C_CYAN}   PDFX - preparar la carpeta portable para el USB${C_FIN}"
++echo "  ${C_CYAN}========================================================${C_FIN}"
++echo ""
++echo "     Esto tarda entre 10 y 25 minutos segun tu conexion."
++echo "     Veras pasar muchas lineas de texto: es normal."
++echo "     No cierres esta ventana hasta que ponga LISTO."
++
++# ---------------------------------------------------------------- 1. equipo
++
++paso '[1 de 7] Comprobando el equipo'
++
++ARQ="$(uname -m)"
++registro "arquitectura: $ARQ"
++if [ "$ARQ" != "x86_64" ]; then
++    fallar '1 de 7 - comprobar el equipo' \
++           "esta maquina es $ARQ y el OCR portable solo existe para x86_64" '' \
++           'PDFX se puede compilar igual, pero sin OCR los PDF escaneados saldran vacios.' \
++           'Instala tesseract con el gestor de paquetes de tu distribucion y usa --solo-compilar.'
++fi
++
++LIBRES_KB="$(df -Pk "$RAIZ" | awk 'NR==2 {print $4}')"
++LIBRES_GB="$(awk -v k="$LIBRES_KB" 'BEGIN{printf "%.1f", k/1048576}')"
++if awk -v k="$LIBRES_KB" 'BEGIN{exit !(k < 3145728)}'; then
++    fallar '1 de 7 - comprobar el equipo' "solo quedan $LIBRES_GB GB libres y hacen falta 3" '' \
++           'Libera espacio en el disco y vuelve a ejecutar el instalador.'
++fi
++bien "Espacio libre: $LIBRES_GB GB"
++
++if [ -s /etc/os-release ]; then
++    # shellcheck disable=SC1091
++    DISTRO="$(. /etc/os-release; echo "${PRETTY_NAME:-$NAME}")"
++    bien "Sistema: $DISTRO"
++    registro "distro: $DISTRO"
++fi
++
++if command -v curl >/dev/null 2>&1; then
++    if curl -fsS --head --max-time 20 https://pypi.org >/dev/null 2>&1; then
++        bien 'Conexion a internet'
++    else
++        aviso 'No he podido comprobar la conexion. Si falla una descarga, ese es el motivo.'
++    fi
++fi
++
++# ---------------------------------------------------------------- 2. Python
++
++paso '[2 de 7] Buscando Python'
++
++PYTHON=''
++for cand in python3.13 python3.12 python3.11 python3.10 python3; do
++    if command -v "$cand" >/dev/null 2>&1; then
++        if "$cand" -c 'import sys; sys.exit(0 if sys.version_info[:2] >= (3,10) else 1)' 2>/dev/null; then
++            PYTHON="$(command -v "$cand")"
++            break
++        fi
++    fi
++done
++if [ -z "$PYTHON" ]; then
++    fallar '2 de 7 - buscar Python' 'no hay Python 3.10 o superior en este equipo' '' \
++           'Instalalo con el gestor de paquetes de tu distribucion, por ejemplo:' \
++           '  sudo apt install python3 python3-venv python3-tk   (Debian/Ubuntu)' \
++           '  sudo dnf install python3 python3-tkinter           (Fedora)' \
++           'y vuelve a ejecutar el instalador.'
++fi
++bien "Python $("$PYTHON" -c 'import platform; print(platform.python_version())')"
++registro "python: $PYTHON"
++
++# En Linux, a diferencia de Windows, Python viene troceado en paquetes. Sin
++# ensurepip no se puede crear el entorno, y sin tkinter no hay ventana ni
++# compilacion. Se detecta que falta y se instala solo; si no se puede, se dice
++# exactamente que orden hay que teclear.
++FALTAN_MOD=()
++"$PYTHON" -c 'import ensurepip' >/dev/null 2>&1 || FALTAN_MOD+=('venv')
++"$PYTHON" -c 'import tkinter'   >/dev/null 2>&1 || FALTAN_MOD+=('tk')
++command -v objdump >/dev/null 2>&1                || FALTAN_MOD+=('binutils')
++
++if [ "${#FALTAN_MOD[@]}" -gt 0 ]; then
++    registro "faltan piezas del sistema: ${FALTAN_MOD[*]}"
++    GESTOR=''; PAQUETES=()
++    if command -v apt-get >/dev/null 2>&1; then
++        GESTOR='apt-get'
++        for m in "${FALTAN_MOD[@]}"; do
++            case "$m" in
++                venv)     PAQUETES+=('python3-venv') ;;
++                tk)       PAQUETES+=('python3-tk') ;;
++                binutils) PAQUETES+=('binutils') ;;
++            esac
++        done
++    elif command -v dnf >/dev/null 2>&1; then
++        GESTOR='dnf'
++        for m in "${FALTAN_MOD[@]}"; do
++            case "$m" in
++                tk)       PAQUETES+=('python3-tkinter') ;;
++                binutils) PAQUETES+=('binutils') ;;
++            esac
++        done
++    elif command -v pacman >/dev/null 2>&1; then
++        GESTOR='pacman'
++        for m in "${FALTAN_MOD[@]}"; do
++            case "$m" in
++                tk)       PAQUETES+=('tk') ;;
++                binutils) PAQUETES+=('binutils') ;;
++            esac
++        done
++    elif command -v zypper >/dev/null 2>&1; then
++        GESTOR='zypper'
++        for m in "${FALTAN_MOD[@]}"; do
++            case "$m" in
++                tk)       PAQUETES+=('python3-tk') ;;
++                binutils) PAQUETES+=('binutils') ;;
++            esac
++        done
++    fi
++
++    ORDEN=''
++    case "$GESTOR" in
++        apt-get) ORDEN="sudo apt-get install -y ${PAQUETES[*]}" ;;
++        dnf)     ORDEN="sudo dnf install -y ${PAQUETES[*]}" ;;
++        pacman)  ORDEN="sudo pacman -S --needed --noconfirm ${PAQUETES[*]}" ;;
++        zypper)  ORDEN="sudo zypper install -y ${PAQUETES[*]}" ;;
++    esac
++
++    if [ -z "$ORDEN" ] || [ "${#PAQUETES[@]}" = 0 ]; then
++        fallar '2 de 7 - buscar Python' "faltan piezas de Python: ${FALTAN_MOD[*]}" '' \
++               'Instala el modulo venv, tkinter y binutils con el gestor de tu distribucion.'
++    fi
++
++    detalle "Faltan piezas del sistema: ${PAQUETES[*]}"
++    if [ "$(id -u)" = 0 ]; then
++        detalle "Instalandolas..."
++        # shellcheck disable=SC2086
++        ORDEN_ROOT="${ORDEN#sudo }"
++        [ "$GESTOR" = 'apt-get' ] && ejecutar "$REGISTRO" apt-get update -qq
++        ejecutar "$REGISTRO" $ORDEN_ROOT
++    elif command -v sudo >/dev/null 2>&1; then
++        echo ""
++        echo "     Hacen falta estos paquetes del sistema: ${PAQUETES[*]}"
++        echo "     Voy a instalarlos. Puede que te pida tu contrasena."
++        echo ""
++        [ "$GESTOR" = 'apt-get' ] && ejecutar "$REGISTRO" sudo apt-get update -qq
++        # shellcheck disable=SC2086
++        ejecutar "$REGISTRO" $ORDEN
++    else
++        fallar '2 de 7 - buscar Python' "faltan piezas de Python: ${FALTAN_MOD[*]}" '' \
++               'No hay sudo en este equipo. Pide que instalen esto y repite:' \
++               "  $ORDEN"
++    fi
++
++    PENDIENTE=()
++    "$PYTHON" -c 'import ensurepip' >/dev/null 2>&1 || PENDIENTE+=('venv')
++    "$PYTHON" -c 'import tkinter'   >/dev/null 2>&1 || PENDIENTE+=('tkinter')
++    command -v objdump >/dev/null 2>&1                || PENDIENTE+=('binutils')
++    if [ "${#PENDIENTE[@]}" -gt 0 ]; then
++        fallar '2 de 7 - buscar Python' "sigue faltando: ${PENDIENTE[*]}" "$REGISTRO" \
++               'Instalalo a mano y vuelve a ejecutar el instalador:' \
++               "  $ORDEN"
++    fi
++    bien 'Piezas del sistema instaladas'
++else
++    bien 'Python trae venv, tkinter y binutils'
++fi
++
++# ---------------------------------------------------------- 3. componentes
++
++paso '[3 de 7] Instalando componentes (unos 150 MB, tarda unos 5 minutos)'
++
++VENV="$RAIZ/.venv-linux"
++PY_VENV="$VENV/bin/python"
++LOG_PIP="$CARPETA_LOGS/log-pip-linux.txt"
++rm -f "$LOG_PIP"
++
++if [ -x "$PY_VENV" ]; then
++    bien 'Entorno .venv-linux ya existente'
++else
++    if ! ejecutar "$LOG_PIP" "$PYTHON" -m venv "$VENV"; then
++        fallar '3 de 7 - instalar componentes' 'no se pudo crear el entorno .venv-linux' "$LOG_PIP" \
++               'Comprueba que tienes el paquete python3-venv instalado.'
++    fi
++    bien 'Entorno .venv-linux creado'
++fi
++
++ejecutar "$LOG_PIP" "$PY_VENV" -m pip install --upgrade pip
++if ! ejecutar "$LOG_PIP" "$PY_VENV" -m pip install -r "$RAIZ/requirements-dev.txt"; then
++    fallar '3 de 7 - instalar componentes' 'pip no pudo instalar las dependencias' "$LOG_PIP" \
++           'Suele ser un corte de red. Vuelve a ejecutar el instalador.' \
++           'Lo que ya estaba instalado no se repite.'
++fi
++if ! ejecutar "$LOG_PIP" "$PY_VENV" -m PyInstaller --version; then
++    fallar '3 de 7 - instalar componentes' 'PyInstaller no quedo instalado' "$LOG_PIP" \
++           'Revisa el log de pip.'
++fi
++bien 'Componentes instalados'
++
++# ------------------------------------------------------------- 4. Tesseract
++
++TESS_DIR="$RAIZ/tools/tesseract-linux"
++TESS_SH="$TESS_DIR/tesseract.sh"
++IDIOMAS=(spa eng osd)
++
++faltan_idiomas() {
++    local f=() l
++    for l in "${IDIOMAS[@]}"; do
++        [ -f "$TESS_DIR/tessdata/$l.traineddata" ] || f+=("$l")
++    done
++    printf '%s' "${f[*]}"
++}
++
++if [ "$SOLO_COMPILAR" = 1 ]; then
++    paso '[4 de 7] Descarga del OCR omitida (--solo-compilar)'
++else
++    paso '[4 de 7] Descargando el OCR Tesseract (unos 60 MB, tarda unos 2 minutos)'
++
++    if [ -x "$TESS_SH" ] && [ -z "$(faltan_idiomas)" ]; then
++        bien 'El OCR ya estaba descargado y completo'
++    else
++        # Igual que en Windows: la version se fija, pero se prueban varias por
++        # si el empaquetador retira una release.
++        VERSIONES=("${TESSERACT_VERSION:-5.5.1}" 5.5.0 5.4.1)
++        APPIMAGE=''
++        # Via de escape: si la red bloquea github, se puede dejar el AppImage
++        # descargado en otro equipo dentro de tools/.
++        for cand in "$RAIZ"/tools/tesseract-*.AppImage "$RAIZ"/tesseract-*.AppImage; do
++            if [ -f "$cand" ] && [ "$(stat -c '%s' "$cand")" -gt 30000000 ]; then
++                APPIMAGE="$cand"
++                bien "Usando el AppImage que ya habias dejado en $cand"
++                break
++            fi
++        done
++
++        TMP_TESS="$(mktemp -d)"
++        trap 'rm -rf "$TMP_TESS"' EXIT
++
++        if [ -z "$APPIMAGE" ]; then
++            URLS=()
++            for v in "${VERSIONES[@]}"; do
++                URLS+=("https://github.com/AlexanderP/tesseract-appimage/releases/download/v${v}/tesseract-${v}-x86_64.AppImage")
++            done
++            APPIMAGE="$TMP_TESS/tesseract.AppImage"
++            if ! ERR="$(descargar "$APPIMAGE" 30000000 "${URLS[@]}")"; then
++                fallar '4 de 7 - descargar el OCR' "no se pudo descargar el OCR: $ERR" "$REGISTRO" \
++                       'Vuelve a ejecutar el instalador: puede haber sido un corte pasajero.' \
++                       'Si tu red bloquea github.com, descarga este fichero desde otro equipo:' \
++                       "  ${URLS[0]}" \
++                       'y dejalo dentro de la carpeta tools/ del proyecto. Luego repite.'
++            fi
++        fi
++
++        chmod +x "$APPIMAGE" 2>/dev/null || true
++        detalle 'Extrayendo el OCR...'
++        # --appimage-extract descomprime sin necesitar FUSE, que es justo lo
++        # que no hay dentro de un contenedor ni en WSL sin configurar.
++        if ! ( cd "$TMP_TESS" && "$APPIMAGE" --appimage-extract >/dev/null 2>&1 ); then
++            fallar '4 de 7 - extraer el OCR' 'el AppImage del OCR no se dejo extraer' "$REGISTRO" \
++                   'Vuelve a ejecutar el instalador; el fichero puede haberse descargado a medias.'
++        fi
++        SR="$TMP_TESS/squashfs-root"
++        BIN_TESS="$(find "$SR" -type f -name tesseract -perm -u+x 2>/dev/null | head -1)"
++        if [ -z "$BIN_TESS" ]; then
++            fallar '4 de 7 - extraer el OCR' 'no encuentro tesseract en lo extraido' "$REGISTRO" \
++                   'Vuelve a ejecutar el instalador.'
++        fi
++
++        rm -rf "$TESS_DIR"
++        mkdir -p "$TESS_DIR/lib" "$TESS_DIR/tessdata"
++        cp "$BIN_TESS" "$TESS_DIR/"
++        CARGADOR="$(find "$SR" -maxdepth 2 -name 'ld-linux-x86-64.so.2' 2>/dev/null | head -1)"
++        [ -n "$CARGADOR" ] && cp "$CARGADOR" "$TESS_DIR/"
++        [ -d "$SR/usr/lib" ] && cp -a "$SR/usr/lib/." "$TESS_DIR/lib/"
++
++        ORIGEN_TESSDATA="$(find "$SR" -type d -name tessdata 2>/dev/null | head -1)"
++        if [ -n "$ORIGEN_TESSDATA" ]; then
++            for l in "${IDIOMAS[@]}"; do
++                [ -f "$ORIGEN_TESSDATA/$l.traineddata" ] && \
++                    cp "$ORIGEN_TESSDATA/$l.traineddata" "$TESS_DIR/tessdata/"
++            done
++        fi
++
++        # El AppImage trae su propia libc: hay que arrancarlo con su cargador,
++        # o en una distribucion distinta a la que lo empaqueto no arranca.
++        if [ -f "$TESS_DIR/ld-linux-x86-64.so.2" ]; then
++            escribir_texto "$TESS_SH" \
++                '#!/bin/sh' \
++                'D="$(cd "$(dirname "$0")" && pwd)"' \
++                'export TESSDATA_PREFIX="$D/tessdata"' \
++                'exec "$D/ld-linux-x86-64.so.2" --library-path "$D/lib" "$D/tesseract" "$@"'
++        else
++            escribir_texto "$TESS_SH" \
++                '#!/bin/sh' \
++                'D="$(cd "$(dirname "$0")" && pwd)"' \
++                'export TESSDATA_PREFIX="$D/tessdata"' \
++                'export LD_LIBRARY_PATH="$D/lib:${LD_LIBRARY_PATH:-}"' \
++                'exec "$D/tesseract" "$@"'
++        fi
++        chmod +x "$TESS_SH" "$TESS_DIR/tesseract"
++        rm -rf "$TMP_TESS"
++        trap - EXIT
++    fi
++
++    # Los idiomas que no trae el AppImage se completan del repositorio oficial.
++    PENDIENTES="$(faltan_idiomas)"
++    if [ -n "$PENDIENTES" ]; then
++        mkdir -p "$TESS_DIR/tessdata"
++        for l in $PENDIENTES; do
++            detalle "Descargando el idioma $l..."
++            if ! ERR="$(descargar "$TESS_DIR/tessdata/$l.traineddata" 1000000 \
++                        "https://github.com/tesseract-ocr/tessdata_fast/raw/main/$l.traineddata")"; then
++                fallar '4 de 7 - descargar idiomas del OCR' "falta el idioma $l" "$REGISTRO" \
++                       'Sin el idioma espanol los PDF escaneados en castellano saldran mal.' \
++                       'Comprueba la conexion y vuelve a ejecutar el instalador.'
++            fi
++        done
++    fi
++
++    # Comprobacion de verdad: que el binario arranque en ESTA maquina.
++    if ! "$TESS_SH" --list-langs >/dev/null 2>>"$REGISTRO"; then
++        fallar '4 de 7 - comprobar el OCR' 'el OCR no arranca en este equipo' "$REGISTRO" \
++               'Puede faltar alguna libreria del sistema. Revisa el registro.'
++    fi
++    bien "OCR listo con los idiomas: ${IDIOMAS[*]}"
++fi
++
++if [ "$SOLO_OCR" = 1 ]; then
++    echo ""
++    echo "  ${C_VERDE}Descarga del OCR terminada (--solo-ocr).${C_FIN}"
++    pausar
++    exit 0
++fi
++
++# -------------------------------------------------------------- 5. compilar
++
++paso '[5 de 7] Compilando PDFX (tarda unos 5 minutos)'
++
++rm -rf "$TRABAJO_PY" "$PORTABLE"
++LOG_BUILD="$CARPETA_LOGS/log-pyinstaller-linux.txt"
++rm -f "$LOG_BUILD"
++
++if ! ejecutar "$LOG_BUILD" "$PY_VENV" -m PyInstaller "$RAIZ/build/pdfx.spec" --noconfirm \
++        --distpath "$DIST_PLATAFORMA" --workpath "$TRABAJO_PY" \
++    || [ ! -x "$PORTABLE/PDFX" ]; then
++    fallar '5 de 7 - compilar' 'PyInstaller no genero el ejecutable PDFX' "$LOG_BUILD" \
++           'Revisa el log de PyInstaller.' \
++           'Si falta alguna libreria del sistema, saldra indicado ahi.'
++fi
++bien 'PDFX compilado'
++
++# ----------------------------------------------------- 6. preparar la carpeta
++
++paso '[6 de 7] Preparando la carpeta para la memoria USB'
++
++if [ -x "$TESS_SH" ]; then
++    mkdir -p "$PORTABLE/tools"
++    cp -a "$TESS_DIR" "$PORTABLE/tools/"
++    bien 'OCR copiado dentro de la carpeta'
++else
++    aviso 'La carpeta va SIN OCR: los PDF escaneados saldran vacios.'
++fi
++
++escribir_texto "$PORTABLE/EJECUTAR.sh" \
++    '#!/bin/sh' \
++    '# Abre la ventana de PDFX. Tambien acepta ordenes: ./EJECUTAR.sh convertir fichero.pdf' \
++    'cd "$(dirname "$0")" && exec ./PDFX "$@"'
++chmod +x "$PORTABLE/EJECUTAR.sh"
++
++escribir_texto "$PORTABLE/CONVERTIR.sh" \
++    '#!/bin/sh' \
++    '# Convierte a Markdown los PDF que le pases:  ./CONVERTIR.sh informe.pdf otro.pdf' \
++    'cd "$(dirname "$0")" || exit 1' \
++    'if [ $# -eq 0 ]; then' \
++    '  echo "Uso: ./CONVERTIR.sh fichero.pdf [mas ficheros...]"' \
++    '  exit 1' \
++    'fi' \
++    'echo "Convirtiendo. No cierres esta ventana..."' \
++    'echo' \
++    './PDFX convertir "$@" --rapido' \
++    'estado=$?' \
++    'echo' \
++    'if [ $estado -ne 0 ]; then' \
++    '  echo "ALGO HA FALLADO. El motivo esta mas arriba."' \
++    'else' \
++    '  echo "Hecho. Los .md estan junto a cada PDF."' \
++    'fi' \
++    'exit $estado'
++chmod +x "$PORTABLE/CONVERTIR.sh"
++
++escribir_texto "$PORTABLE/LEEME_PRIMERO.txt" \
++    'PDFX - convertir PDF a Markdown, Word y Excel' \
++    '=============================================' \
++    '' \
++    'No hay que instalar nada. Este programa funciona sin' \
++    'internet: ningun documento sale de tu ordenador.' \
++    '' \
++    'COMO SE USA' \
++    '-----------' \
++    'Desde el gestor de archivos, doble clic en  EJECUTAR.sh' \
++    'y se abre la ventana. Si te pregunta, elige "Ejecutar".' \
++    '' \
++    'Desde el terminal:' \
++    '  ./EJECUTAR.sh' \
++    '' \
++    'La primera vez puede tardar hasta un minuto en abrirse,' \
++    'sobre todo desde una memoria USB. Ten paciencia.' \
++    '' \
++    'Para convertir sin abrir la ventana:' \
++    '  ./CONVERTIR.sh informe.pdf' \
++    'y deja un fichero .md al lado de cada PDF.' \
++    '' \
++    'SI COPIAS ESTA CARPETA A OTRO SITIO' \
++    '-----------------------------------' \
++    'Copiala ENTERA. El programa solo no funciona: necesita las' \
++    'carpetas _internal y tools que estan a su lado.' \
++    '' \
++    'SI NO TE DEJA EJECUTARLO' \
++    '------------------------' \
++    'Puede que la memoria USB este montada sin permiso de' \
++    'ejecucion. Copia la carpeta PDFX al disco duro (por' \
++    'ejemplo a tu carpeta personal) y abrela desde ahi. Si hace' \
++    'falta, devuelvele el permiso con:' \
++    '  chmod +x PDFX/PDFX PDFX/EJECUTAR.sh PDFX/CONVERTIR.sh' \
++    '' \
++    'SI LOS PDF ESCANEADOS SALEN VACIOS' \
++    '----------------------------------' \
++    'Falta la carpeta  tools  o esta incompleta. Vuelve a' \
++    'copiar la carpeta PDFX entera desde el origen.'
++
++bien 'Carpeta preparada'
++
++# ------------------------------------------------------------ 7. autoprueba
++
++paso '[7 de 7] Comprobando que lo compilado funciona'
++
++FALLOS=()
++EXE="$PORTABLE/PDFX"
++
++[ -x "$EXE" ] || FALLOS+=('falta el ejecutable PDFX')
++if [ -f "$EXE" ]; then
++    TAM="$(stat -c '%s' "$EXE")"
++    [ "$TAM" -lt 1000000 ] && FALLOS+=('el ejecutable PDFX tiene un tamano imposible')
++fi
++[ -f "$PORTABLE/_internal/base_library.zip" ] || FALLOS+=('falta _internal/base_library.zip')
++# _tkinter no esta siempre en el mismo sitio: en Linux con Python 3.13
++# PyInstaller lo mete en _internal/python3.13/lib-dynload/. Se busca en todo
++# el arbol en vez de suponer una ruta, que es justo lo que fallaba antes.
++if ! find "$PORTABLE/_internal" -name '_tkinter*.so' -print -quit 2>/dev/null | grep -q .; then
++    FALLOS+=('falta _tkinter: la ventana no abriria')
++fi
++# Los datos de Tcl/Tk cambian de nombre segun la version (_tk_data, tk8.6...).
++# Se prueba nombre a nombre: un solo `ls` con varios candidatos devuelve error
++# si falta cualquiera de ellos, aunque el bueno si este.
++TK_OK=0
++for d in _tk_data tk8.6 tk8.7 tk; do
++    [ -d "$PORTABLE/_internal/$d" ] && { TK_OK=1; break; }
++done
++[ "$TK_OK" = 1 ] || FALLOS+=('faltan los datos de Tk: la ventana no abriria')
++
++if [ -x "$PORTABLE/tools/tesseract-linux/tesseract.sh" ]; then
++    for l in "${IDIOMAS[@]}"; do
++        [ -f "$PORTABLE/tools/tesseract-linux/tessdata/$l.traineddata" ] || \
++            FALLOS+=("falta el idioma $l del OCR")
++    done
++elif [ "$SOLO_COMPILAR" != 1 ]; then
++    FALLOS+=('falta tools/tesseract-linux dentro de la carpeta')
++fi
++
++if [ "${#FALLOS[@]}" -gt 0 ]; then
++    fallar '7 de 7 - comprobar el resultado' "$(IFS='; '; echo "${FALLOS[*]}")" "$LOG_BUILD" \
++           'Vuelve a ejecutar el instalador.'
++fi
++bien 'Estructura de la carpeta correcta'
++
++# Prueba de verdad: convertir un PDF escaneado con el ejecutable ya compilado.
++# Es la unica comprobacion que demuestra a la vez el arranque, el OCR, la ruta
++# de Tesseract dentro de la carpeta y la escritura del Markdown.
++if [ "$SIN_PRUEBA" != 1 ] && [ -f "$RAIZ/tests/data/escaneado.pdf" ]; then
++    PRUEBA="$(mktemp -d)"
++    cp "$RAIZ/tests/data/escaneado.pdf" "$PRUEBA/"
++    detalle 'Convirtiendo un PDF escaneado de prueba (puede tardar un minuto)...'
++    SALIDA="$PRUEBA/salida.txt"
++    if ! ( cd "$PORTABLE" && ./PDFX convertir "$PRUEBA/escaneado.pdf" --rapido -q ) \
++            >"$SALIDA" 2>&1 || [ ! -f "$PRUEBA/escaneado.md" ]; then
++        cp "$SALIDA" "$CARPETA_LOGS/salida-prueba.txt" 2>/dev/null || true
++        fallar '7 de 7 - prueba de conversion' 'el ejecutable no pudo convertir el PDF de prueba' \
++               "$SALIDA" 'Vuelve a ejecutar el instalador.'
++    fi
++    if grep -qi 'mantenimiento preventivo' "$PRUEBA/escaneado.md"; then
++        bien 'Prueba de conversion correcta: el OCR lee un PDF escaneado'
++    else
++        aviso 'La conversion funciono pero el OCR no leyo el texto esperado. Revisa los idiomas del OCR.'
++    fi
++    rm -rf "$PRUEBA"
++elif [ "$SIN_PRUEBA" != 1 ]; then
++    aviso 'No he podido hacer la prueba de conversion (falta tests/data/escaneado.pdf).'
++fi
++
++# ------------------------------------------------------------------- final
++
++DESTINO="$PORTABLE"
++NUM="$(find "$DESTINO" -type f | wc -l)"
++TAM_MB="$(du -sm "$DESTINO" | cut -f1)"
++
++echo ""
++echo "  ${C_VERDE}========================================================${C_FIN}"
++echo "  ${C_VERDE}   LISTO${C_FIN}"
++echo "  ${C_VERDE}========================================================${C_FIN}"
++echo ""
++echo "     Carpeta preparada:"
++echo "       $DESTINO"
++echo "       $TAM_MB MB, $NUM ficheros"
++echo ""
++echo "     QUE HACER AHORA"
++echo "     ---------------"
++echo "     1. Conecta la memoria USB."
++echo "     2. Copia la CARPETA ENTERA llamada  PDFX  a la memoria."
++echo "        IMPORTANTE: no copies solo el ejecutable. Sin la carpeta"
++echo "        _internal el programa no arranca. Copia la carpeta"
++echo "        completa, tal cual, con todo lo que hay dentro."
++echo "     3. En el otro ordenador, abre la carpeta PDFX de la"
++echo "        memoria y ejecuta  EJECUTAR.sh"
++echo ""
++echo "     Para llevartela comprimida:"
++echo "       cd dist/linux && zip -r ../PDFX-portable-linux.zip PDFX"
++echo ""
++echo "     Dentro de la carpeta tienes  LEEME_PRIMERO.txt  con estos"
++echo "     mismos pasos, por si no te acuerdas."
++
++if [ "${#AVISOS[@]}" -gt 0 ]; then
++    echo ""
++    echo "     ${C_AMAR}AVISOS:${C_FIN}"
++    for a in "${AVISOS[@]}"; do echo "       ${C_AMAR}- $a${C_FIN}"; done
++fi
++
++echo ""
++echo "     ${C_GRIS}Registro de esta instalacion: $REGISTRO${C_FIN}"
++echo ""
++pausar
++exit 0
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,26 @@
++# Entornos virtuales: uno por plataforma, porque Windows y Linux se construyen
++# desde esta misma carpeta y no pueden compartirlo.
++.venv/
++.venv-linux/
++
++# Todo lo que genera una compilacion. Se regenera con INSTALAR_PDFX.bat o
++# INSTALAR_PDFX.sh, asi que no tiene sentido versionarlo: son cientos de MB.
++dist/
++build/build-windows/
++build/build-linux/
++tools/
++
++# Registros de instalacion y de las herramientas que invoca.
++build/registro-instalacion*.txt
++build/log-*.txt
++build/salida-prueba.txt
++
++# Python
++__pycache__/
++*.py[cod]
++.pytest_cache/
++.coverage
++
++# Sistema operativo
++Thumbs.db
++.DS_Store

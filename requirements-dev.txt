@@ -1,0 +1,4 @@
+-r requirements.txt
+pyinstaller>=6.0        # empaquetado portable
+reportlab>=4.0          # generacion de PDF de prueba
+pytest>=8.0
