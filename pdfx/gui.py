@@ -44,6 +44,30 @@ def open_in_explorer(path: Path) -> None:
         pass
 
 
+def hay_manejador_md() -> bool:
+    """Best-effort: hay alguna aplicacion asociada a los ficheros .md?
+
+    En macOS no hay una forma sencilla de consultarlo sin dependencias
+    extra, asi que ahi se asume que si (delega en el "open" del sistema,
+    igual que antes).
+    """
+    try:
+        if sys.platform.startswith("win"):
+            import winreg
+            with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, ".md"):
+                pass
+            return True
+        elif sys.platform == "darwin":
+            return True
+        else:
+            r = subprocess.run(
+                ["xdg-mime", "query", "default", "text/markdown"],
+                capture_output=True, text=True, timeout=3)
+            return r.returncode == 0 and bool(r.stdout.strip())
+    except Exception:
+        return False
+
+
 @dataclass
 class Job:
     kind: str          # "convert" | "scan"
@@ -377,9 +401,8 @@ class App(tk.Tk):
             "*Ver el Markdown generado*.\n\n"
             "Se muestran encabezados, listas, tablas, codigo e imagenes.\n\n"
             "Para seguir editando con mas herramientas (temas, matematicas, "
-            "diagramas, sincronizacion), usa **Abrir en MDx**. Si no tienes MDx "
-            "instalada como aplicacion, la abrira en https://mdx.crgm.app/ "
-            "(o instalala ahi primero).\n"
+            "diagramas, sincronizacion), usa **Abrir en MDx**. Si no la tienes "
+            "instalada, te manda a https://mdx.crgm.app/ para instalarla.\n"
         )
         return tab
 
@@ -782,7 +805,17 @@ class App(tk.Tk):
         if not self.last_md or not self.last_md.exists():
             messagebox.showinfo(APP_NAME, "Todavia no hay ningun Markdown generado.")
             return
-        open_in_explorer(self.last_md)
+        if hay_manejador_md():
+            open_in_explorer(self.last_md)
+            return
+        import webbrowser
+        webbrowser.open("https://mdx.crgm.app/")
+        messagebox.showinfo(
+            APP_NAME,
+            "No encontre ninguna aplicacion asociada a los ficheros .md en "
+            "este equipo.\n\nSe abrio https://mdx.crgm.app/ - instala MDx "
+            "ahi (o arrastra el archivo a la pagina) y vuelve a intentarlo."
+        )
 
     def _load_md(self, path: Path) -> None:
         try:

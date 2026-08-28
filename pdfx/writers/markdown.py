@@ -18,13 +18,37 @@ CLAUDE_HEADER = (
     "> **Documento convertido a texto plano.** Este fichero contiene el "
     "contenido completo del documento original (texto, tablas y referencias a "
     "las imagenes) ya extraido. Trabaja directamente sobre este texto: no hace "
-    "falta el PDF ni ninguna herramienta adicional para leerlo."
+    "falta el PDF ni ninguna herramienta adicional para leerlo.\n>\n"
+    "> El campo `resumen` de la cabecera esta vacio porque PDFX no entiende "
+    "el contenido, solo lo extrae. Si vas a trabajar con este documento, "
+    "escribe ahi un resumen breve (2-4 lineas) de que trata y que preguntas "
+    "responde, editando el fichero directamente. Asi, la proxima vez que "
+    "alguien -tu u otro asistente- necesite saber si este documento sirve "
+    "para algo, le basta con leer `esquema` y `resumen` en la cabecera, sin "
+    "releer el fichero entero."
 )
+
+MAX_ITEMS_ESQUEMA = 60
 
 
 def _yaml_escape(value: str) -> str:
     value = (value or "").replace('"', "'").replace("\n", " ").strip()
     return f'"{value}"' if value else '""'
+
+
+def _esquema(doc: Document) -> list[str]:
+    """Indice de encabezados: esto si lo puede sacar el conversor solo, a
+    diferencia del resumen, porque son marcas de estructura (# ## ###...)
+    que ya vienen del documento, no algo que haya que entender."""
+    items: list[str] = []
+    for page in doc.pages:
+        for el in page.elements:
+            if isinstance(el, Block) and el.kind == "heading":
+                texto = el.text.strip()
+                if texto:
+                    nivel = max(1, min(6, el.level or 2))
+                    items.append("#" * nivel + " " + texto)
+    return items
 
 
 def front_matter(doc: Document, settings: Settings, redaction_note: str = "") -> str:
@@ -47,6 +71,14 @@ def front_matter(doc: Document, settings: Settings, redaction_note: str = "") ->
     ]
     if redaction_note:
         lines.append(f"saneado: {_yaml_escape(redaction_note)}")
+    esquema = _esquema(doc)
+    if esquema:
+        lines.append("esquema:")
+        lines.extend(f"  - {_yaml_escape(h)}" for h in esquema[:MAX_ITEMS_ESQUEMA])
+        if len(esquema) > MAX_ITEMS_ESQUEMA:
+            lines.append(f'  - "(+{len(esquema) - MAX_ITEMS_ESQUEMA} encabezados mas)"')
+    if settings.md_claude_header:
+        lines.append('resumen: ""')
     lines.append("---")
     return "\n".join(lines)
 
