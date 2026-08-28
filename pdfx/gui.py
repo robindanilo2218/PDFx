@@ -245,6 +245,8 @@ class App(tk.Tk):
                    command=self.open_output).pack(side="left")
         ttk.Button(done, text="Ver el Markdown generado",
                    command=self.view_last_md).pack(side="left", padx=4)
+        ttk.Button(done, text="Abrir en MDx",
+                   command=self.open_in_mdx).pack(side="left", padx=4)
         return tab
 
     # ---------------- pestana 2: revisar --------------------------------
@@ -346,6 +348,8 @@ class App(tk.Tk):
         bar.pack(fill="x", pady=(0, 6))
         ttk.Button(bar, text="Abrir .md...", command=self.open_md).pack(side="left")
         ttk.Button(bar, text="Recargar", command=self.reload_md).pack(side="left", padx=4)
+        ttk.Button(bar, text="Abrir en MDx",
+                   command=self.open_in_mdx).pack(side="left", padx=4)
         ttk.Label(bar, text="Tema:").pack(side="left", padx=(12, 2))
         cb = ttk.Combobox(bar, textvariable=self.v_view_theme, width=8,
                           state="readonly", values=("claro", "oscuro"))
@@ -371,7 +375,11 @@ class App(tk.Tk):
             "# Visor de Markdown\n\nAbre un fichero `.md` con **Abrir .md...**, "
             "o convierte un PDF en la primera pestana y pulsa "
             "*Ver el Markdown generado*.\n\n"
-            "Se muestran encabezados, listas, tablas, codigo e imagenes.\n"
+            "Se muestran encabezados, listas, tablas, codigo e imagenes.\n\n"
+            "Para seguir editando con mas herramientas (temas, matematicas, "
+            "diagramas, sincronizacion), usa **Abrir en MDx**. Si no tienes MDx "
+            "instalada como aplicacion, la abrira en https://mdx.crgm.app/ "
+            "(o instalala ahi primero).\n"
         )
         return tab
 
@@ -769,6 +777,12 @@ class App(tk.Tk):
             messagebox.showinfo(APP_NAME, "Todavia no hay ningun Markdown generado.")
             return
         self._load_md(self.last_md)
+
+    def open_in_mdx(self) -> None:
+        if not self.last_md or not self.last_md.exists():
+            messagebox.showinfo(APP_NAME, "Todavia no hay ningun Markdown generado.")
+            return
+        open_in_explorer(self.last_md)
 
     def _load_md(self, path: Path) -> None:
         try:
