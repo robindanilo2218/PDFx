@@ -111,7 +111,7 @@ def render(doc: Document, settings: Settings, redaction_note: str = "") -> str:
         f"<b>Imagenes:</b> {doc.n_images} &nbsp;|&nbsp; ",
         f"<b>OCR:</b> {doc.n_ocr_pages} paginas<br>",
         f"Convertido en local el {dt.datetime.now().strftime('%d/%m/%Y %H:%M')} "
-        "con PDFX, sin conexion a internet.",
+        "con PDFx, sin conexion a internet.",
         (f"<br><b>Saneado:</b> {_esc(redaction_note)}" if redaction_note else ""),
         "</div>",
     ]

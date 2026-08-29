@@ -1,4 +1,4 @@
-# PDFX — guía rápida
+# PDFx — guía rápida
 
 Para convertir un PDF a texto y poder pegarlo en Claude, ChatGPT o donde sea,
 **sin que el documento salga de tu ordenador**.
@@ -11,7 +11,7 @@ No hay que instalar nada. No hace falta pedirle permisos a informática.
 
 | | |
 |---|---|
-| **Windows** | doble clic en `PDFX.exe` |
+| **Windows** | doble clic en `PDFx.exe` |
 | **Linux** | doble clic en `EJECUTAR.sh`, o `./EJECUTAR.sh` desde el terminal |
 
 **La primera vez tarda hasta un minuto en abrirse**, sobre todo desde una
@@ -54,11 +54,11 @@ OCR:  [ auto  ▾ ]     ← cámbialo a  always
 
 ### Por qué
 
-En `auto`, PDFX mira si la página ya tiene texto. Si encuentra 60 caracteres o
+En `auto`, PDFx mira si la página ya tiene texto. Si encuentra 60 caracteres o
 más, da la página por leída y no la mira más.
 
 El problema: un escaneo con **cabecera, pie de página o número de página** ya
-tiene esos 60 caracteres. PDFX se queda con la cabecera y **no lee el resto de
+tiene esos 60 caracteres. PDFx se queda con la cabecera y **no lee el resto de
 la página**. Te devuelve un documento casi vacío y sin decirte por qué.
 
 Con `always` obliga a leer la imagen entera. Tarda algo más y se acabó el
@@ -106,8 +106,8 @@ texto.
 
 | Qué ves | Qué pasa |
 |---|---|
-| **Los escaneados salen vacíos** | Casi siempre es el OCR en `auto`: ve al punto 3. Si aun así sale vacío, falta la carpeta `tools`: vuelve a copiar la carpeta `PDFX` entera desde el origen. |
-| **No arranca desde el USB** | Algunos ordenadores de empresa bloquean los programas en memorias USB. Copia la carpeta `PDFX` al disco duro, por ejemplo a Documentos, y ábrela desde ahí. |
+| **Los escaneados salen vacíos** | Casi siempre es el OCR en `auto`: ve al punto 3. Si aun así sale vacío, falta la carpeta `tools`: vuelve a copiar la carpeta `PDFx` entera desde el origen. |
+| **No arranca desde el USB** | Algunos ordenadores de empresa bloquean los programas en memorias USB. Copia la carpeta `PDFx` al disco duro, por ejemplo a Documentos, y ábrela desde ahí. |
 | **Se abre y se cierra sola** | Has copiado sólo el ejecutable. Hace falta la carpeta **entera**: sin `_internal` y `tools` no arranca. |
 | **Linux: «Permission denied»** | La carpeta ha perdido el permiso de ejecución. Las órdenes exactas están en `LEEME_PRIMERO.txt`, dentro de la carpeta. |
 | **Faltan símbolos raros en el texto** | El OCR descarta en silencio lo que no ve claro. Sube la *Calidad OCR* de 300 a 400 o 600 ppp y vuelve a intentarlo. |
@@ -125,5 +125,5 @@ ese texto sí viaja. Por eso está el punto 4.
 
 ---
 
-PDFX es software libre bajo licencia GPL v3.
+PDFx es software libre bajo licencia GPL v3.
 Copyright (C) 2026 Robin Gregorio · <https://github.com/robindanilo2218/PDFx>

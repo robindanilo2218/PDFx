@@ -1,10 +1,10 @@
 @echo off
-rem Lanzador de la instalacion de PDFX para Windows.
+rem Lanzador de la instalacion de PDFx para Windows.
 rem Haz doble clic en este fichero. No hace falta nada mas.
-title Instalador de PDFX
+title Instalador de PDFx
 cd /d "%~dp0"
 echo.
-echo   Preparando PDFX. Esto tarda entre 10 y 25 minutos.
+echo   Preparando PDFx. Esto tarda entre 10 y 25 minutos.
 echo   No cierres esta ventana.
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0build\setup-pdfx-windows.ps1" %*

@@ -1,4 +1,4 @@
-# PDFX — conversor de PDF sin conexión
+# PDFx — conversor de PDF sin conexión
 
 Convierte PDF (incluidos los **escaneados** y los que son sólo imagen) a
 **Markdown, Word, Excel, HTML, texto plano y JSON**, extrayendo además las
@@ -18,16 +18,16 @@ confidencial**.
 
 Descárgalos desde Google Drive y ejecuta:
 
-- **Windows:** doble clic en `PDFX.exe`
+- **Windows:** doble clic en `PDFx.exe`
 - **Linux:** `./EJECUTAR.sh`
 
 📥 **[Carpeta con todos los portables](https://drive.google.com/drive/folders/19BXyMfmLa0foWsRnT95IyGu8oGBraKk4?usp=drive_link)**
 
 O descarga uno por uno:
 
-- [PDFX-portable-windows.zip](https://drive.google.com/file/d/1hBHnex3k_klmv7HeCjCeZE8crF5TEC-K/view?usp=drive_link) — 115 MB
-- [PDFX-portable-linux.zip](https://drive.google.com/file/d/1KuFCfaPGVfyUv0QIlPX1O5xoWyIAbI7o/view?usp=drive_link) — 99 MB
-- [Código fuente (PDFX-proyecto.zip)](https://drive.google.com/file/d/12OANRy1Cjw5SNR9ZE_1eVHMjr2Ox9PzJ/view?usp=drive_link) — 0,9 MB
+- [PDFx-portable-windows.zip](https://drive.google.com/file/d/1hBHnex3k_klmv7HeCjCeZE8crF5TEC-K/view?usp=drive_link) — 115 MB
+- [PDFx-portable-linux.zip](https://drive.google.com/file/d/1KuFCfaPGVfyUv0QIlPX1O5xoWyIAbI7o/view?usp=drive_link) — 99 MB
+- [Código fuente (PDFx-proyecto.zip)](https://drive.google.com/file/d/12OANRy1Cjw5SNR9ZE_1eVHMjr2Ox9PzJ/view?usp=drive_link) — 0,9 MB
 
 ### ¿Sólo quieres usarlo?
 
@@ -39,7 +39,7 @@ tachar lo confidencial y qué hacer cuando algo falla. Sin jerga.
 
 ## Qué resuelve
 
-| Problema | Cómo lo resuelve PDFX |
+| Problema | Cómo lo resuelve PDFx |
 |---|---|
 | MarkItDown y similares no leen PDF escaneados | OCR integrado (Tesseract 5) con enderezado y realce de contraste |
 | Las tablas escaneadas salen destrozadas | Detección del rayado sobre la imagen + segunda lectura celda a celda |
@@ -54,10 +54,10 @@ tachar lo confidencial y qué hacer cuando algo falla. Sin jerga.
 
 ### Para el usuario final (portable)
 
-No hay instalación. Se copia la carpeta `PDFX` (a un USB, al escritorio, a una
+No hay instalación. Se copia la carpeta `PDFx` (a un USB, al escritorio, a una
 unidad de red) y se ejecuta:
 
-- **Windows:** doble clic en `PDFX.exe`
+- **Windows:** doble clic en `PDFx.exe`
 - **Linux:** `./EJECUTAR.sh`
 
 Al abrirlo sin argumentos aparece la ventana. En Windows también se puede
@@ -66,12 +66,12 @@ convertirlos a `.md` al instante.
 
 ### Generar el portable de Windows
 
-Un solo paso. En la carpeta del proyecto, **doble clic en `INSTALAR_PDFX.bat`**.
+Un solo paso. En la carpeta del proyecto, **doble clic en `INSTALAR_PDFx.bat`**.
 
 Se encarga de todo: comprueba el equipo, instala Python 3.12 si no está (sólo
 para tu usuario, sin permisos de administrador), crea el entorno, descarga el
 OCR Tesseract con los idiomas español e inglés, compila el ejecutable,
-**verifica convirtiendo un PDF escaneado de prueba** y deja `dist\windows\PDFX` lista.
+**verifica convirtiendo un PDF escaneado de prueba** y deja `dist\windows\PDFx` lista.
 Al terminar ofrece copiarla a la memoria USB que tengas conectada.
 
 Tarda entre 10 y 25 minutos y necesita internet **una sola vez**, en la máquina
@@ -105,14 +105,14 @@ requisitos—; sólo se separa lo que genera cada compilación:
 
 | | Windows | Linux |
 |---|---|---|
-| Entrada | `INSTALAR_PDFX.bat` | `INSTALAR_PDFX.sh` |
-| Portable | `dist/windows/PDFX` | `dist/linux/PDFX` |
+| Entrada | `INSTALAR_PDFx.bat` | `INSTALAR_PDFx.sh` |
+| Portable | `dist/windows/PDFx` | `dist/linux/PDFx` |
 | Entorno | `.venv` | `.venv-linux` |
 | Trabajo de PyInstaller | `build/build-windows` | `build/build-linux` |
 | OCR | `tools/tesseract` | `tools/tesseract-linux` |
 | Registro | `build/registro-instalacion.txt` | `build/registro-instalacion-linux.txt` |
 
-En los dos casos la carpeta que se entrega se llama `PDFX`, así que el usuario
+En los dos casos la carpeta que se entrega se llama `PDFx`, así que el usuario
 final ve exactamente lo mismo en cualquiera de los dos sistemas.
 
 ### Generar el portable de Linux
@@ -120,19 +120,19 @@ final ve exactamente lo mismo en cualquiera de los dos sistemas.
 Un solo paso, igual que en Windows:
 
 ```bash
-./INSTALAR_PDFX.sh          # o bien:  bash INSTALAR_PDFX.sh
+./INSTALAR_PDFx.sh          # o bien:  bash INSTALAR_PDFx.sh
 ```
 
 Hace lo mismo que su gemelo de Windows: comprueba el equipo, instala las piezas
 del sistema que falten (`python3-venv`, `python3-tk`, `binutils` — pedirá tu
 contraseña si hace falta), crea el entorno, descarga el OCR Tesseract con los
 idiomas español e inglés, compila, **verifica convirtiendo un PDF escaneado de
-prueba** y deja `dist/linux/PDFX` lista.
+prueba** y deja `dist/linux/PDFx` lista.
 
 Para el desarrollador, los mismos parámetros:
 
 ```bash
-./INSTALAR_PDFX.sh
+./INSTALAR_PDFx.sh
 #   --solo-ocr        descarga el OCR y para
 #   --solo-compilar   salta la descarga del OCR
 #   --sin-prueba      no ejecuta la prueba de conversión final
@@ -145,7 +145,7 @@ pero ahora sólo delegan en el instalador: la lógica vive en un único sitio.
 Para llevártela comprimida:
 
 ```bash
-cd dist/linux && rm -f ../PDFX-portable-linux.zip && zip -r ../PDFX-portable-linux.zip PDFX
+cd dist/linux && rm -f ../PDFx-portable-linux.zip && zip -r ../PDFx-portable-linux.zip PDFx
 ```
 
 ---
@@ -295,7 +295,7 @@ que sí tiene, en lugar de fallar.
 
 ## Licencia
 
-PDFX es software libre, bajo la **Licencia Pública General de GNU, versión 3**.
+PDFx es software libre, bajo la **Licencia Pública General de GNU, versión 3**.
 El texto completo está en [LICENSE](LICENSE).
 
 ```
@@ -310,7 +310,7 @@ siquiera la garantía implícita de COMERCIALIZACIÓN o de IDONEIDAD PARA UN FIN
 DETERMINADO. Consulta la Licencia Pública General de GNU para más detalles.
 ```
 
-En la práctica, para quien recibe PDFX: puede usarlo para lo que quiera,
+En la práctica, para quien recibe PDFx: puede usarlo para lo que quiera,
 copiarlo y repartirlo. Si lo modifica y reparte su versión, tiene que
 publicarla también bajo la GPL v3 y dar acceso al código.
 

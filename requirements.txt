@@ -1,4 +1,4 @@
-# Dependencias de PDFX. Todas con licencia permisiva (MIT / BSD / Apache).
+# Dependencias de PDFx. Todas con licencia permisiva (MIT / BSD / Apache).
 # Se evita PyMuPDF a proposito: es AGPL y obligaria a liberar el codigo del
 # cliente o a comprar licencia comercial.
 pypdfium2>=4.30        # PDFium (BSD-3): render y objetos de pagina

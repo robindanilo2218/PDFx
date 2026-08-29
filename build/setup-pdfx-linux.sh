@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# Prepara la carpeta portable de PDFX para Linux, de principio a fin.
+# Prepara la carpeta portable de PDFx para Linux, de principio a fin.
 #
 # Es el gemelo de build/setup-pdfx-windows.ps1: los mismos 7 pasos, los mismos
 # mensajes y la misma autoprueba final. No hay que ejecutar nada mas ni tocar
 # nada a mano.
 #
-#   ./INSTALAR_PDFX.sh                (o: bash INSTALAR_PDFX.sh)
+#   ./INSTALAR_PDFx.sh                (o: bash INSTALAR_PDFx.sh)
 #
 # Para el desarrollador:
 #   --solo-ocr       descarga el OCR y para
@@ -43,7 +43,7 @@ if [ ! -d "$RAIZ/pdfx" ]; then
     echo ""
     echo "  No encuentro la carpeta del proyecto (falta pdfx/)."
     echo "  Ejecuta el instalador desde la carpeta del proyecto:"
-    echo "    ./INSTALAR_PDFX.sh"
+    echo "    ./INSTALAR_PDFx.sh"
     echo ""
     exit 1
 fi
@@ -54,11 +54,11 @@ AVISOS=()
 
 # Cada plataforma deja lo suyo en su propia carpeta. Windows y Linux se
 # construyen desde el mismo proyecto, asi que si los dos escribieran en
-# dist/PDFX, .venv y build/build, compilar para uno borraria el portable del
+# dist/PDFx, .venv y build/build, compilar para uno borraria el portable del
 # otro. Lo que si se comparte es lo que importa: el codigo, el .spec, las
 # pruebas y los requisitos.
 DIST_PLATAFORMA="$RAIZ/dist/linux"
-PORTABLE="$DIST_PLATAFORMA/PDFX"
+PORTABLE="$DIST_PLATAFORMA/PDFx"
 TRABAJO_PY="$RAIZ/build/build-linux"
 
 # Color solo si la salida es un terminal de verdad; si se redirige a un
@@ -88,7 +88,7 @@ fallar() {
     local paso_fallo="$1" motivo="$2" log="$3"; shift 3
     echo ""
     echo "  ${C_ROJO}--------------------------------------------------------${C_FIN}"
-    echo "  ${C_ROJO}   HA FALLADO. PDFX no se ha podido preparar.${C_FIN}"
+    echo "  ${C_ROJO}   HA FALLADO. PDFx no se ha podido preparar.${C_FIN}"
     echo "  ${C_ROJO}--------------------------------------------------------${C_FIN}"
     echo ""
     echo "     Paso que fallo : $paso_fallo"
@@ -173,11 +173,11 @@ escribir_texto() {
 # ---------------------------------------------------------------- cabecera
 
 mkdir -p "$CARPETA_LOGS"
-printf 'PDFX - instalacion iniciada %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" > "$REGISTRO"
+printf 'PDFx - instalacion iniciada %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" > "$REGISTRO"
 
 echo ""
 echo "  ${C_CYAN}========================================================${C_FIN}"
-echo "  ${C_CYAN}   PDFX - preparar la carpeta portable para el USB${C_FIN}"
+echo "  ${C_CYAN}   PDFx - preparar la carpeta portable para el USB${C_FIN}"
 echo "  ${C_CYAN}========================================================${C_FIN}"
 echo ""
 echo "     Esto tarda entre 10 y 25 minutos segun tu conexion."
@@ -193,7 +193,7 @@ registro "arquitectura: $ARQ"
 if [ "$ARQ" != "x86_64" ]; then
     fallar '1 de 7 - comprobar el equipo' \
            "esta maquina es $ARQ y el OCR portable solo existe para x86_64" '' \
-           'PDFX se puede compilar igual, pero sin OCR los PDF escaneados saldran vacios.' \
+           'PDFx se puede compilar igual, pero sin OCR los PDF escaneados saldran vacios.' \
            'Instala tesseract con el gestor de paquetes de tu distribucion y usa --solo-compilar.'
 fi
 
@@ -513,7 +513,7 @@ fi
 
 # -------------------------------------------------------------- 5. compilar
 
-paso '[5 de 7] Compilando PDFX (tarda unos 5 minutos)'
+paso '[5 de 7] Compilando PDFx (tarda unos 5 minutos)'
 
 rm -rf "$TRABAJO_PY" "$PORTABLE"
 LOG_BUILD="$CARPETA_LOGS/log-pyinstaller-linux.txt"
@@ -521,12 +521,12 @@ rm -f "$LOG_BUILD"
 
 if ! ejecutar "$LOG_BUILD" "$PY_VENV" -m PyInstaller "$RAIZ/build/pdfx.spec" --noconfirm \
         --distpath "$DIST_PLATAFORMA" --workpath "$TRABAJO_PY" \
-    || [ ! -x "$PORTABLE/PDFX" ]; then
-    fallar '5 de 7 - compilar' 'PyInstaller no genero el ejecutable PDFX' "$LOG_BUILD" \
+    || [ ! -x "$PORTABLE/PDFx" ]; then
+    fallar '5 de 7 - compilar' 'PyInstaller no genero el ejecutable PDFx' "$LOG_BUILD" \
            'Revisa el log de PyInstaller.' \
            'Si falta alguna libreria del sistema, saldra indicado ahi.'
 fi
-bien 'PDFX compilado'
+bien 'PDFx compilado'
 
 # ----------------------------------------------------- 6. preparar la carpeta
 
@@ -542,8 +542,8 @@ fi
 
 escribir_texto "$PORTABLE/EJECUTAR.sh" \
     '#!/bin/sh' \
-    '# Abre la ventana de PDFX. Tambien acepta ordenes: ./EJECUTAR.sh convertir fichero.pdf' \
-    'cd "$(dirname "$0")" && exec ./PDFX "$@"'
+    '# Abre la ventana de PDFx. Tambien acepta ordenes: ./EJECUTAR.sh convertir fichero.pdf' \
+    'cd "$(dirname "$0")" && exec ./PDFx "$@"'
 chmod +x "$PORTABLE/EJECUTAR.sh"
 
 escribir_texto "$PORTABLE/CONVERTIR.sh" \
@@ -556,7 +556,7 @@ escribir_texto "$PORTABLE/CONVERTIR.sh" \
     'fi' \
     'echo "Convirtiendo. No cierres esta ventana..."' \
     'echo' \
-    './PDFX convertir "$@" --rapido' \
+    './PDFx convertir "$@" --rapido' \
     'estado=$?' \
     'echo' \
     'if [ $estado -ne 0 ]; then' \
@@ -568,7 +568,7 @@ escribir_texto "$PORTABLE/CONVERTIR.sh" \
 chmod +x "$PORTABLE/CONVERTIR.sh"
 
 escribir_texto "$PORTABLE/LEEME_PRIMERO.txt" \
-    'PDFX - convertir PDF a Markdown, Word y Excel' \
+    'PDFx - convertir PDF a Markdown, Word y Excel' \
     '=============================================' \
     '' \
     'No hay que instalar nada. Este programa funciona sin' \
@@ -597,12 +597,12 @@ escribir_texto "$PORTABLE/LEEME_PRIMERO.txt" \
     'SI NO TE DEJA EJECUTARLO' \
     '------------------------' \
     'Puede que la memoria USB este montada sin permiso de' \
-    'ejecucion. Copia la carpeta PDFX al disco duro (por' \
+    'ejecucion. Copia la carpeta PDFx al disco duro (por' \
     'ejemplo a tu carpeta personal) y abrela desde ahi. Si hace' \
     'falta, devuelvele el permiso con:' \
-    '  chmod +x PDFX/PDFX PDFX/EJECUTAR.sh PDFX/CONVERTIR.sh' \
-    '  chmod +x PDFX/tools/tesseract-linux/tesseract*' \
-    '  chmod +x PDFX/tools/tesseract-linux/ld-linux-x86-64.so.2' \
+    '  chmod +x PDFx/PDFx PDFx/EJECUTAR.sh PDFx/CONVERTIR.sh' \
+    '  chmod +x PDFx/tools/tesseract-linux/tesseract*' \
+    '  chmod +x PDFx/tools/tesseract-linux/ld-linux-x86-64.so.2' \
     '' \
     'SI LOS PDF ESCANEADOS SALEN VACIOS' \
     '----------------------------------' \
@@ -622,12 +622,12 @@ escribir_texto "$PORTABLE/LEEME_PRIMERO.txt" \
     'ultimas ordenes de la seccion anterior.' \
     '' \
     'Y si no es nada de eso, falta la carpeta  tools  o esta' \
-    'incompleta. Vuelve a copiar la carpeta PDFX entera desde' \
+    'incompleta. Vuelve a copiar la carpeta PDFx entera desde' \
     'el origen.' \
     '' \
     'LICENCIA' \
     '--------' \
-    'PDFX es software libre.  Copyright (C) 2026 Robin Gregorio.' \
+    'PDFx es software libre.  Copyright (C) 2026 Robin Gregorio.' \
     'Se reparte bajo la Licencia Publica General de GNU version 3;' \
     'el texto completo esta en  LICENSE.txt , aqui al lado. Se' \
     'entrega SIN NINGUNA GARANTIA.' \
@@ -661,15 +661,15 @@ bien 'Carpeta preparada'
 paso '[7 de 7] Comprobando que lo compilado funciona'
 
 FALLOS=()
-EXE="$PORTABLE/PDFX"
+EXE="$PORTABLE/PDFx"
 
-[ -x "$EXE" ] || FALLOS+=('falta el ejecutable PDFX')
+[ -x "$EXE" ] || FALLOS+=('falta el ejecutable PDFx')
 if [ -f "$EXE" ]; then
     TAM="$(stat -c '%s' "$EXE")"
-    [ "$TAM" -lt 1000000 ] && FALLOS+=('el ejecutable PDFX tiene un tamano imposible')
+    [ "$TAM" -lt 1000000 ] && FALLOS+=('el ejecutable PDFx tiene un tamano imposible')
 fi
 [ -f "$PORTABLE/_internal/base_library.zip" ] || FALLOS+=('falta _internal/base_library.zip')
-# Repartir la carpeta sin estos dos ficheros es incumplir la GPL de PDFX y la
+# Repartir la carpeta sin estos dos ficheros es incumplir la GPL de PDFx y la
 # Apache-2.0 de Tesseract. Es un fallo, no un aviso que se pierde en el log.
 [ -f "$PORTABLE/LICENSE.txt" ] || FALLOS+=('falta LICENSE.txt: la carpeta no se puede repartir sin licencia')
 [ -f "$PORTABLE/TERCEROS.txt" ] || FALLOS+=('falta TERCEROS.txt: faltan los avisos de los componentes de terceros')
@@ -711,7 +711,7 @@ if [ "$SIN_PRUEBA" != 1 ] && [ -f "$RAIZ/tests/data/escaneado.pdf" ]; then
     cp "$RAIZ/tests/data/escaneado.pdf" "$PRUEBA/"
     detalle 'Convirtiendo un PDF escaneado de prueba (puede tardar un minuto)...'
     SALIDA="$PRUEBA/salida.txt"
-    if ! ( cd "$PORTABLE" && ./PDFX convertir "$PRUEBA/escaneado.pdf" --rapido -q ) \
+    if ! ( cd "$PORTABLE" && ./PDFx convertir "$PRUEBA/escaneado.pdf" --rapido -q ) \
             >"$SALIDA" 2>&1 || [ ! -f "$PRUEBA/escaneado.md" ]; then
         cp "$SALIDA" "$CARPETA_LOGS/salida-prueba.txt" 2>/dev/null || true
         fallar '7 de 7 - prueba de conversion' 'el ejecutable no pudo convertir el PDF de prueba' \
@@ -745,15 +745,15 @@ echo ""
 echo "     QUE HACER AHORA"
 echo "     ---------------"
 echo "     1. Conecta la memoria USB."
-echo "     2. Copia la CARPETA ENTERA llamada  PDFX  a la memoria."
+echo "     2. Copia la CARPETA ENTERA llamada  PDFx  a la memoria."
 echo "        IMPORTANTE: no copies solo el ejecutable. Sin la carpeta"
 echo "        _internal el programa no arranca. Copia la carpeta"
 echo "        completa, tal cual, con todo lo que hay dentro."
-echo "     3. En el otro ordenador, abre la carpeta PDFX de la"
+echo "     3. En el otro ordenador, abre la carpeta PDFx de la"
 echo "        memoria y ejecuta  EJECUTAR.sh"
 echo ""
 echo "     Para llevartela comprimida:"
-echo "       cd dist/linux && zip -r ../PDFX-portable-linux.zip PDFX"
+echo "       cd dist/linux && zip -r ../PDFx-portable-linux.zip PDFx"
 echo ""
 echo "     Dentro de la carpeta tienes  LEEME_PRIMERO.txt  con estos"
 echo "     mismos pasos, por si no te acuerdas."

@@ -1,13 +1,13 @@
 #Requires -Version 5.1
 <#
-    Prepara la carpeta portable de PDFX para Windows, de principio a fin.
+    Prepara la carpeta portable de PDFx para Windows, de principio a fin.
 
     No hay que ejecutar ningun otro script: este se basta solo. Comprueba el
     equipo, instala Python si hace falta, crea el entorno, descarga el OCR
     Tesseract, compila el ejecutable, verifica que lo compilado funciona de
-    verdad y deja dist\windows\PDFX lista para copiar a una memoria USB.
+    verdad y deja dist\windows\PDFx lista para copiar a una memoria USB.
 
-    Un novato no ejecuta esto directamente: hace doble clic en INSTALAR_PDFX.bat,
+    Un novato no ejecuta esto directamente: hace doble clic en INSTALAR_PDFx.bat,
     que esta en la raiz del proyecto. Windows no ejecuta ficheros .ps1 con doble
     clic (los abre en el Bloc de notas), de ahi el lanzador.
 
@@ -89,7 +89,7 @@ function Detalle([string]$texto) {
 function Fallar([string]$paso, [string]$motivo, [string[]]$consejos, [string]$log) {
     Write-Host ''
     Write-Host '  --------------------------------------------------------' -ForegroundColor Red
-    Write-Host '     HA FALLADO. PDFX no se ha podido preparar.' -ForegroundColor Red
+    Write-Host '     HA FALLADO. PDFx no se ha podido preparar.' -ForegroundColor Red
     Write-Host '  --------------------------------------------------------' -ForegroundColor Red
     Write-Host ''
     Write-Host "     Paso que fallo : $paso"
@@ -262,7 +262,7 @@ function Descargar-Una([string]$url, [string]$destino, [int]$minimoBytes) {
     Escribir-Registro '  metodo: WebClient'
     try {
         $wc = New-Object System.Net.WebClient
-        $wc.Headers.Add('User-Agent', 'Mozilla/5.0 PDFX-setup')
+        $wc.Headers.Add('User-Agent', 'Mozilla/5.0 PDFx-setup')
         $wc.DownloadFile($url, $destino)
         $wc.Dispose()
         if (Bastante $destino) { return $null }
@@ -301,17 +301,17 @@ function Texto-Windows([string[]]$lineas, [string]$ruta) {
 }
 
 trap {
-    Fallar 'inesperado' "$_" @('Vuelve a ejecutar INSTALAR_PDFX.bat. Lo que ya estaba hecho no se repite.') $script:registro
+    Fallar 'inesperado' "$_" @('Vuelve a ejecutar INSTALAR_PDFx.bat. Lo que ya estaba hecho no se repite.') $script:registro
 }
 
 # ---------------------------------------------------------------- cabecera
 
 if (-not (Test-Path $script:carpetaLogs)) { New-Item -ItemType Directory -Force -Path $script:carpetaLogs | Out-Null }
-Set-Content -Path $script:registro -Value "PDFX - instalacion iniciada $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -Encoding UTF8
+Set-Content -Path $script:registro -Value "PDFx - instalacion iniciada $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -Encoding UTF8
 
 Write-Host ''
 Write-Host '  ========================================================' -ForegroundColor Cyan
-Write-Host '     PDFX - preparar la carpeta portable para el USB' -ForegroundColor Cyan
+Write-Host '     PDFx - preparar la carpeta portable para el USB' -ForegroundColor Cyan
 Write-Host '  ========================================================' -ForegroundColor Cyan
 Write-Host ''
 Write-Host '     Esto tarda entre 10 y 25 minutos segun tu conexion.'
@@ -325,7 +325,7 @@ Paso '[1 de 7] Comprobando el equipo'
 if ($script:raiz -match '\\AppData\\Local\\Temp\\') {
     Fallar '1 de 7 - comprobar el equipo' 'estas ejecutando desde dentro de un ZIP' @(
         'Extrae la carpeta primero: clic derecho sobre el ZIP -> Extraer todo.',
-        'Luego abre la carpeta extraida y haz doble clic en INSTALAR_PDFX.bat.'
+        'Luego abre la carpeta extraida y haz doble clic en INSTALAR_PDFx.bat.'
     ) ''
 }
 
@@ -334,7 +334,7 @@ if ($unidad -and $unidad.Free) {
     $libresGB = [math]::Round($unidad.Free / 1GB, 1)
     if ($libresGB -lt 3) {
         Fallar '1 de 7 - comprobar el equipo' "solo hay $libresGB GB libres en $($unidad.Name): y hacen falta 3 GB" @(
-            'Libera espacio en el disco y vuelve a ejecutar INSTALAR_PDFX.bat.'
+            'Libera espacio en el disco y vuelve a ejecutar INSTALAR_PDFx.bat.'
         ) ''
     }
     Bien "Espacio libre: $libresGB GB"
@@ -380,7 +380,7 @@ $python312 = Buscar-Python
 if (-not $python312) {
     Write-Host '     [X]  Python no esta instalado' -ForegroundColor Yellow
     Write-Host ''
-    Write-Host '          PDFX necesita Python 3.12 para compilarse.'
+    Write-Host '          PDFx necesita Python 3.12 para compilarse.'
     Write-Host '          Puedo instalarlo yo, solo para tu usuario, sin pedir'
     Write-Host '          permisos de administrador y sin tocar nada mas del equipo.'
     Write-Host ''
@@ -391,7 +391,7 @@ if (-not $python312) {
             'Abre https://www.python.org/downloads/release/python-31210/',
             'Descarga "Windows installer (64-bit)".',
             'En la PRIMERA pantalla marca la casilla "Add python.exe to PATH".',
-            'Pulsa "Install Now" y vuelve a ejecutar INSTALAR_PDFX.bat.'
+            'Pulsa "Install Now" y vuelve a ejecutar INSTALAR_PDFx.bat.'
         ) ''
     }
 
@@ -431,7 +431,7 @@ if (-not $python312) {
     }
     if (-not $python312) {
         Fallar '2 de 7 - instalar Python' 'Python se instalo pero no lo encuentro' @(
-            'Cierra esta ventana, abre una nueva y vuelve a ejecutar INSTALAR_PDFX.bat.'
+            'Cierra esta ventana, abre una nueva y vuelve a ejecutar INSTALAR_PDFx.bat.'
         ) ''
     }
 }
@@ -451,7 +451,7 @@ if ((Test-Path '.venv') -and -not (Test-Path $pythonVenv)) {
     Remove-Item -Recurse -Force '.venv' -ErrorAction SilentlyContinue
     if (Test-Path '.venv') {
         Fallar '3 de 7 - preparar el entorno' 'no he podido borrar la carpeta .venv' @(
-            'Borrala tu a mano y vuelve a ejecutar INSTALAR_PDFX.bat.'
+            'Borrala tu a mano y vuelve a ejecutar INSTALAR_PDFx.bat.'
         ) ''
     }
 }
@@ -635,7 +635,7 @@ if ($SoloCompilar) {
             $err = Descargar $urls $instalador (30MB)
             if ($err) {
                 Fallar '4 de 7 - descargar el OCR' $err @(
-                    'Vuelve a ejecutar INSTALAR_PDFX.bat: puede haber sido un corte pasajero.',
+                    'Vuelve a ejecutar INSTALAR_PDFx.bat: puede haber sido un corte pasajero.',
                     'Si el antivirus corta la descarga, desactivalo un momento y repite.',
                     'Si tu red bloquea github.com, descarga este fichero desde otro equipo:',
                     "  $url",
@@ -686,7 +686,7 @@ if ($SoloCompilar) {
         if (-not $encontrado) {
             Fallar '4 de 7 - extraer el OCR' 'no encuentro tesseract.exe en lo extraido' @(
                 'Hace falta 7-Zip para abrir el instalador del OCR y no he podido conseguirlo.',
-                'Comprueba la conexion y vuelve a ejecutar INSTALAR_PDFX.bat.',
+                'Comprueba la conexion y vuelve a ejecutar INSTALAR_PDFx.bat.',
                 'Si tu red bloquea www.7-zip.org, instala 7-Zip a mano desde',
                 '  https://www.7-zip.org  y repite.',
                 'Si no puedes instalar nada en este equipo, copia 7z.exe y 7z.dll',
@@ -712,7 +712,7 @@ if ($SoloCompilar) {
                 Copy-Item $f.FullName (Join-Path $licTess $f.Name) -Force -ErrorAction SilentlyContinue
             }
         }
-        # Podar lo que PDFX no usa nunca. Solo se invoca tesseract.exe, asi que
+        # Podar lo que PDFx no usa nunca. Solo se invoca tesseract.exe, asi que
         # las herramientas de entrenamiento (lstmtraining, text2image y demas)
         # son 64 MB muertos. Los DLL no se tocan: cuales necesita de verdad
         # tesseract.exe no se puede comprobar sin ejecutarlo en Windows, y
@@ -738,7 +738,7 @@ if ($SoloCompilar) {
             Remove-Item -Force -ErrorAction SilentlyContinue
 
         if (-not (Test-Path $tessExe)) {
-            Fallar '4 de 7 - extraer el OCR' 'tesseract.exe no quedo en tools\tesseract' @('Vuelve a ejecutar INSTALAR_PDFX.bat.') ''
+            Fallar '4 de 7 - extraer el OCR' 'tesseract.exe no quedo en tools\tesseract' @('Vuelve a ejecutar INSTALAR_PDFx.bat.') ''
         }
     }
 
@@ -754,7 +754,7 @@ if ($SoloCompilar) {
             if ($err) {
                 Fallar '4 de 7 - descargar idiomas del OCR' "falta el idioma $l" @(
                     'Sin el idioma espanol los PDF escaneados en castellano saldran mal.',
-                    'Comprueba la conexion y vuelve a ejecutar INSTALAR_PDFX.bat.'
+                    'Comprueba la conexion y vuelve a ejecutar INSTALAR_PDFx.bat.'
                 ) ''
             }
         }
@@ -786,23 +786,23 @@ if ($SoloTesseract) {
 
 # -------------------------------------------------------------- 5. compilar
 
-Paso '[5 de 7] Compilando PDFX.exe (tarda unos 5 minutos)'
+Paso '[5 de 7] Compilando PDFx.exe (tarda unos 5 minutos)'
 
 # Cada plataforma deja su portable en su propia carpeta. Si Windows y Linux
-# escribieran los dos en dist\PDFX, compilar para una borraria el portable de
+# escribieran los dos en dist\PDFx, compilar para una borraria el portable de
 # la otra, y este proyecto esta hecho para construir las dos desde el mismo
 # sitio. Lo que si se comparte es todo lo que importa: el codigo, el .spec,
 # las pruebas y los requisitos.
 $distPlataforma = 'dist\windows'
-$portable       = 'dist\windows\PDFX'
+$portable       = 'dist\windows\PDFx'
 $trabajoPy      = 'build\build-windows'
 
 foreach ($sobra in @($trabajoPy, $portable)) {
     Remove-Item -Recurse -Force $sobra -ErrorAction SilentlyContinue
 }
-if (Test-Path "$portable\PDFX.exe") {
+if (Test-Path "$portable\PDFx.exe") {
     Fallar '5 de 7 - compilar' 'no puedo borrar la compilacion anterior' @(
-        'Tienes PDFX.exe abierto. Cierralo y vuelve a ejecutar INSTALAR_PDFX.bat.'
+        'Tienes PDFx.exe abierto. Cierralo y vuelve a ejecutar INSTALAR_PDFx.bat.'
     ) ''
 }
 
@@ -810,13 +810,13 @@ $logBuild = Join-Path $script:carpetaLogs 'log-pyinstaller.txt'
 Remove-Item $logBuild -Force -ErrorAction SilentlyContinue
 $rc = Ejecutar $pythonVenv @('-m', 'PyInstaller', 'build\pdfx.spec', '--noconfirm',
                              '--distpath', $distPlataforma, '--workpath', $trabajoPy) $logBuild
-if ($rc -ne 0 -or -not (Test-Path "$portable\PDFX.exe")) {
-    Fallar '5 de 7 - compilar' 'PyInstaller no genero PDFX.exe' @(
+if ($rc -ne 0 -or -not (Test-Path "$portable\PDFx.exe")) {
+    Fallar '5 de 7 - compilar' 'PyInstaller no genero PDFx.exe' @(
         'Suele ser el antivirus bloqueando la escritura. Desactivalo un momento y repite.',
         'Tambien puede ser una ruta demasiado larga: copia el proyecto a C:\pdfx y repite.'
     ) $logBuild
 }
-Bien 'PDFX.exe compilado'
+Bien 'PDFx.exe compilado'
 
 # ----------------------------------------------------- 6. preparar la carpeta
 
@@ -836,19 +836,19 @@ Texto-Windows @(
     'setlocal',
     'cd /d "%~dp0"',
     'if "%~1"=="" (',
-    '  start "" "PDFX.exe"',
+    '  start "" "PDFx.exe"',
     '  exit /b',
     ')',
     'echo Convirtiendo. No cierres esta ventana...',
     'echo.',
-    '"PDFX-consola.exe" %* --rapido',
+    '"PDFx-consola.exe" %* --rapido',
     'echo.',
     'if errorlevel 1 (echo ALGO HA FALLADO. El motivo esta mas arriba.) else (echo Hecho. Los .md estan junto a cada PDF.)',
     'pause'
 ) "$portable\ARRASTRA_AQUI_TUS_PDF.bat"
 
 Texto-Windows @(
-    'PDFX - convertir PDF a Markdown, Word y Excel',
+    'PDFx - convertir PDF a Markdown, Word y Excel',
     '=============================================',
     '',
     'No hay que instalar nada. Este programa funciona sin',
@@ -856,7 +856,7 @@ Texto-Windows @(
     '',
     'COMO SE USA',
     '-----------',
-    'Doble clic en  PDFX.exe  y se abre la ventana.',
+    'Doble clic en  PDFx.exe  y se abre la ventana.',
     '',
     'La primera vez puede tardar hasta un minuto en abrirse,',
     'sobre todo desde una memoria USB. Ten paciencia.',
@@ -867,7 +867,7 @@ Texto-Windows @(
     '',
     'SI COPIAS ESTA CARPETA A OTRO SITIO',
     '-----------------------------------',
-    'Copiala ENTERA. PDFX.exe solo no funciona: necesita las',
+    'Copiala ENTERA. PDFx.exe solo no funciona: necesita las',
     'carpetas _internal y tools que estan a su lado.',
     '',
     'SI WINDOWS TE AVISA AL ABRIRLO',
@@ -881,7 +881,7 @@ Texto-Windows @(
     'SI NO TE DEJA EJECUTARLO DESDE LA MEMORIA USB',
     '---------------------------------------------',
     'Algunos ordenadores de empresa bloquean los programas que',
-    'estan en memorias USB. Copia la carpeta PDFX al disco duro',
+    'estan en memorias USB. Copia la carpeta PDFx al disco duro',
     '(por ejemplo a tu carpeta Documentos) y abrela desde ahi.',
     '',
     'SI LOS PDF ESCANEADOS SALEN VACIOS',
@@ -899,11 +899,11 @@ Texto-Windows @(
     '',
     'Si aun asi sale vacio, entonces si falta la carpeta',
     'tools  o esta incompleta. Vuelve a copiar la carpeta',
-    'PDFX entera desde el origen.',
+    'PDFx entera desde el origen.',
     '',
     'LICENCIA',
     '--------',
-    'PDFX es software libre.  Copyright (C) 2026 Robin Gregorio.',
+    'PDFx es software libre.  Copyright (C) 2026 Robin Gregorio.',
     'Se reparte bajo la Licencia Publica General de GNU version 3;',
     'el texto completo esta en  LICENSE.txt , aqui al lado. Se',
     'entrega SIN NINGUNA GARANTIA.',
@@ -936,13 +936,13 @@ Bien 'Carpeta preparada'
 Paso '[7 de 7] Comprobando que lo compilado funciona'
 
 $fallos = @()
-$consolaExe = "$portable\PDFX-consola.exe"
+$consolaExe = "$portable\PDFx-consola.exe"
 
-if (-not (Test-Path "$portable\PDFX.exe")) { $fallos += 'falta PDFX.exe' }
-elseif ((Get-Item "$portable\PDFX.exe").Length -lt 1MB) { $fallos += 'PDFX.exe tiene un tamano imposible' }
-if (-not (Test-Path $consolaExe)) { $fallos += 'falta PDFX-consola.exe (el .spec no se actualizo)' }
+if (-not (Test-Path "$portable\PDFx.exe")) { $fallos += 'falta PDFx.exe' }
+elseif ((Get-Item "$portable\PDFx.exe").Length -lt 1MB) { $fallos += 'PDFx.exe tiene un tamano imposible' }
+if (-not (Test-Path $consolaExe)) { $fallos += 'falta PDFx-consola.exe (el .spec no se actualizo)' }
 if (-not (Test-Path "$portable\_internal\base_library.zip")) { $fallos += 'falta _internal\base_library.zip' }
-# Repartir la carpeta sin estos dos ficheros es incumplir la GPL de PDFX y la
+# Repartir la carpeta sin estos dos ficheros es incumplir la GPL de PDFx y la
 # Apache-2.0 de Tesseract. Es un fallo, no un aviso que se pierde en el log.
 if (-not (Test-Path "$portable\LICENSE.txt")) { $fallos += 'falta LICENSE.txt: la carpeta no se puede repartir sin licencia' }
 if (-not (Test-Path "$portable\TERCEROS.txt")) { $fallos += 'falta TERCEROS.txt: faltan los avisos de los componentes de terceros' }
@@ -971,7 +971,7 @@ if (Test-Path "$portable\tools\tesseract\tesseract.exe") {
 
 if ($fallos) {
     Fallar '7 de 7 - comprobar el resultado' ($fallos -join '; ') @(
-        'Vuelve a ejecutar INSTALAR_PDFX.bat.'
+        'Vuelve a ejecutar INSTALAR_PDFx.bat.'
     ) $logBuild
 }
 Bien 'Estructura de la carpeta correcta'
@@ -994,7 +994,7 @@ if (-not $SinPrueba -and (Test-Path 'tests\data\escaneado.pdf') -and (Test-Path 
     if ($p.ExitCode -ne 0 -or -not (Test-Path $md)) {
         Copy-Item "$salida.err" $script:carpetaLogs -Force -ErrorAction SilentlyContinue
         Fallar '7 de 7 - prueba de conversion' 'el ejecutable no pudo convertir el PDF de prueba' @(
-            'Vuelve a ejecutar INSTALAR_PDFX.bat.'
+            'Vuelve a ejecutar INSTALAR_PDFx.bat.'
         ) "$salida.err"
     }
     $texto = (Get-Content $md -Raw -Encoding UTF8).ToLower()
@@ -1026,12 +1026,12 @@ Write-Host ''
 Write-Host '     QUE HACER AHORA'
 Write-Host '     ---------------'
 Write-Host '     1. Conecta la memoria USB.'
-Write-Host '     2. Copia la CARPETA ENTERA llamada  PDFX  a la memoria.'
-Write-Host '        IMPORTANTE: no copies solo PDFX.exe. Sin la carpeta'
+Write-Host '     2. Copia la CARPETA ENTERA llamada  PDFx  a la memoria.'
+Write-Host '        IMPORTANTE: no copies solo PDFx.exe. Sin la carpeta'
 Write-Host '        _internal el programa no arranca. Copia la carpeta'
 Write-Host '        completa, tal cual, con todo lo que hay dentro.'
-Write-Host '     3. En el otro ordenador, abre la carpeta PDFX de la'
-Write-Host '        memoria y haz doble clic en  PDFX.exe'
+Write-Host '     3. En el otro ordenador, abre la carpeta PDFx de la'
+Write-Host '        memoria y haz doble clic en  PDFx.exe'
 Write-Host ''
 Write-Host '     Dentro de la carpeta tienes  LEEME_PRIMERO.txt  con estos'
 Write-Host '     mismos pasos, por si no te acuerdas.'
@@ -1050,9 +1050,9 @@ if (-not $Auto) {
         $libres = [math]::Round($usb.FreeSpace / 1GB, 1)
         Write-Host ''
         Write-Host "     He visto una memoria USB conectada: $($usb.DeviceID)\  ($libres GB libres)"
-        $r = Read-Host '     Quieres que copie la carpeta PDFX ahi ahora? (S/N)'
+        $r = Read-Host '     Quieres que copie la carpeta PDFx ahi ahora? (S/N)'
         if ($r -match '^[SsYy]') {
-            $rutaUsb = Join-Path "$($usb.DeviceID)\" 'PDFX'
+            $rutaUsb = Join-Path "$($usb.DeviceID)\" 'PDFx'
             Detalle "Copiando a $rutaUsb ..."
             $rc = Ejecutar 'robocopy' @($destino, $rutaUsb, '/E', '/R:1', '/W:1', '/NP', '/NJH', '/NJS') $script:registro
             if ($rc -lt 8) { Bien "Copiado a $rutaUsb" }
@@ -1065,6 +1065,6 @@ Write-Host ''
 Write-Host "     Registro de esta instalacion: $script:registro" -ForegroundColor DarkGray
 Write-Host ''
 
-try { Start-Process explorer.exe "/select,`"$destino\PDFX.exe`"" -ErrorAction SilentlyContinue } catch { }
+try { Start-Process explorer.exe "/select,`"$destino\PDFx.exe`"" -ErrorAction SilentlyContinue } catch { }
 Pausar
 exit 0
