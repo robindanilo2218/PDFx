@@ -1,4 +1,4 @@
-"""Interfaz de linea de comandos de PDFX.
+"""Interfaz de linea de comandos de PDFx.
 
     pdfx documento.pdf                      -> documento.md
     pdfx *.pdf -f md,docx,xlsx -o salida/

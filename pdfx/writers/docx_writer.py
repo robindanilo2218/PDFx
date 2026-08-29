@@ -113,7 +113,7 @@ def write(doc: Document, dest: Path, settings: Settings,
     docx = DocxDocument()
 
     docx.core_properties.title = doc.title or doc.source_path.stem
-    docx.core_properties.author = doc.author or "PDFX"
+    docx.core_properties.author = doc.author or "PDFx"
     docx.core_properties.comments = (
         f"Convertido localmente desde {doc.source_path.name}"
         + (f" | {redaction_note}" if redaction_note else "")

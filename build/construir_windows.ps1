@@ -12,20 +12,20 @@ if (-not (Test-Path $py)) {
 }
 
 Write-Host "== Limpiando ==" -ForegroundColor Cyan
-Remove-Item -Recurse -Force build\build, dist\PDFX -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force build\build, dist\PDFx -ErrorAction SilentlyContinue
 
 Write-Host "== Empaquetando con PyInstaller ==" -ForegroundColor Cyan
 & $py -m PyInstaller build\pdfx.spec --noconfirm --distpath dist --workpath build\build
 
 Write-Host "== Copiando Tesseract portable ==" -ForegroundColor Cyan
 if (Test-Path tools\tesseract) {
-    New-Item -ItemType Directory -Force -Path dist\PDFX\tools | Out-Null
-    Copy-Item -Recurse -Force tools\tesseract dist\PDFX\tools\
+    New-Item -ItemType Directory -Force -Path dist\PDFx\tools | Out-Null
+    Copy-Item -Recurse -Force tools\tesseract dist\PDFx\tools\
 } else {
     Write-Host "   (aviso) falta tools\tesseract; ejecuta build\obtener_tesseract.ps1" -ForegroundColor Yellow
 }
 
-Copy-Item README.md dist\PDFX\ -ErrorAction SilentlyContinue
+Copy-Item README.md dist\PDFx\ -ErrorAction SilentlyContinue
 
 # Acceso directo para arrastrar y soltar un PDF sobre el .bat
 @'
@@ -33,12 +33,12 @@ Copy-Item README.md dist\PDFX\ -ErrorAction SilentlyContinue
 rem Arrastra uno o varios PDF sobre este fichero para convertirlos a .md
 setlocal
 cd /d "%~dp0"
-if "%~1"=="" ( start "" "PDFX.exe" & exit /b )
-"PDFX.exe" %* --rapido
+if "%~1"=="" ( start "" "PDFx.exe" & exit /b )
+"PDFx.exe" %* --rapido
 pause
-'@ | Set-Content -Encoding ASCII dist\PDFX\ARRASTRA_AQUI_PDF_A_MD.bat
+'@ | Set-Content -Encoding ASCII dist\PDFx\ARRASTRA_AQUI_PDF_A_MD.bat
 
-$size = "{0:N0} MB" -f ((Get-ChildItem -Recurse dist\PDFX | Measure-Object Length -Sum).Sum / 1MB)
+$size = "{0:N0} MB" -f ((Get-ChildItem -Recurse dist\PDFx | Measure-Object Length -Sum).Sum / 1MB)
 Write-Host ""
-Write-Host "Listo: dist\PDFX  ($size)" -ForegroundColor Green
+Write-Host "Listo: dist\PDFx  ($size)" -ForegroundColor Green
 Write-Host "Comprime la carpeta en un ZIP y ya es portable."

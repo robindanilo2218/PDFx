@@ -16,7 +16,7 @@ def to_dict(doc: Document, redaction_note: str = "") -> dict:
         "titulo": doc.title,
         "autor": doc.author,
         "convertido": dt.datetime.now().isoformat(timespec="seconds"),
-        "herramienta": "PDFX",
+        "herramienta": "PDFx",
         "saneado": redaction_note or None,
         "resumen": {
             "paginas": doc.n_pages,

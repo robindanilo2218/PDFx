@@ -1,4 +1,4 @@
-"""Ventana de PDFX: convertir, revisar datos sensibles y ver Markdown.
+"""Ventana de PDFx: convertir, revisar datos sensibles y ver Markdown.
 
 Tkinter a proposito: viaja dentro de la propia distribucion de Python, asi que
 el ejecutable portable no arrastra ningun kit grafico extra.
@@ -722,7 +722,7 @@ class App(tk.Tk):
         red = self._collect_redaction()
         path = filedialog.asksaveasfilename(
             title="Guardar lista de terminos", defaultextension=".json",
-            filetypes=[("Lista PDFX", "*.json"), ("Texto", "*.txt")])
+            filetypes=[("Lista PDFx", "*.json"), ("Texto", "*.txt")])
         if not path:
             return
         p = Path(path)
@@ -740,7 +740,7 @@ class App(tk.Tk):
     def load_terms(self) -> None:
         path = filedialog.askopenfilename(
             title="Cargar lista de terminos",
-            filetypes=[("Lista PDFX", "*.json"), ("Texto", "*.txt"),
+            filetypes=[("Lista PDFx", "*.json"), ("Texto", "*.txt"),
                        ("Todos", "*.*")])
         if not path:
             return

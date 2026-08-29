@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Construye la version portable para Linux y la deja en dist/PDFX.
+# Construye la version portable para Linux y la deja en dist/PDFx.
 #
 #   ./build/construir_linux.sh
 #

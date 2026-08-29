@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""Receta de PyInstaller para PDFX.
+"""Receta de PyInstaller para PDFx.
 
 Genera una carpeta portable (onedir): arranca rapido y no descomprime nada en
 el disco del usuario, que es lo que suele bloquear el antivirus corporativo.
@@ -73,7 +73,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="PDFX",
+    name="PDFx",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -98,7 +98,7 @@ if IS_WIN:
             a.scripts,
             [],
             exclude_binaries=True,
-            name="PDFX-consola",
+            name="PDFx-consola",
             debug=False,
             bootloader_ignore_signals=False,
             strip=False,
@@ -117,5 +117,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="PDFX",
+    name="PDFx",
 )

@@ -19,7 +19,7 @@ CLAUDE_HEADER = (
     "contenido completo del documento original (texto, tablas y referencias a "
     "las imagenes) ya extraido. Trabaja directamente sobre este texto: no hace "
     "falta el PDF ni ninguna herramienta adicional para leerlo.\n>\n"
-    "> El campo `resumen` de la cabecera esta vacio porque PDFX no entiende "
+    "> El campo `resumen` de la cabecera esta vacio porque PDFx no entiende "
     "el contenido, solo lo extrae. Si vas a trabajar con este documento, "
     "escribe ahi un resumen breve (2-4 lineas) de que trata y que preguntas "
     "responde, editando el fichero directamente. Asi, la proxima vez que "
@@ -67,7 +67,7 @@ def front_matter(doc: Document, settings: Settings, redaction_note: str = "") ->
         f"ocr: {'si' if ocr_pages else 'no'}"
         + (f" ({ocr_pages} de {doc.n_pages} paginas)" if ocr_pages else ""),
         f"convertido: {dt.datetime.now().strftime('%Y-%m-%d %H:%M')}",
-        "herramienta: PDFX (conversion local, sin conexion)",
+        "herramienta: PDFx (conversion local, sin conexion)",
     ]
     if redaction_note:
         lines.append(f"saneado: {_yaml_escape(redaction_note)}")

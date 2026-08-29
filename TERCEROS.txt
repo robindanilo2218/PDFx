@@ -1,16 +1,16 @@
-PDFX - avisos de los componentes de terceros
+PDFx - avisos de los componentes de terceros
 ============================================
 
 Copyright (C) 2026 Robin Gregorio
 
-PDFX se distribuye bajo la Licencia Publica General de GNU, version 3.
+PDFx se distribuye bajo la Licencia Publica General de GNU, version 3.
 Su texto completo esta en  LICENSE.txt , en esta misma carpeta, y el
 codigo fuente esta en:
     https://github.com/robindanilo2218/PDFx
 
 Ademas, esta carpeta incluye componentes hechos por otras personas, cada
 uno con su propia licencia. Lo que sigue son sus avisos. Nada de esto te
-impide usar PDFX: estan aqui porque sus licencias exigen que te acompanen.
+impide usar PDFx: estan aqui porque sus licencias exigen que te acompanen.
 
 
 1. EL MOTOR DE OCR
@@ -50,7 +50,7 @@ _internal, que esta al lado del programa.
 ---------------------------------------
 
 Dentro de  tools/  hay bibliotecas que Tesseract necesita para arrancar.
-Algunas son GPL o LGPL. Son programas separados: viajan al lado de PDFX,
+Algunas son GPL o LGPL. Son programas separados: viajan al lado de PDFx,
 no dentro de su ejecutable.
 
 En Windows, dentro de  tools/tesseract/ :
@@ -111,7 +111,7 @@ PyInstaller .................... GPL-2.0 o posterior, con excepcion
 
 No forma parte de lo que se reparte: solo se usa para construir el
 ejecutable. Su excepcion permite empaquetar programas con cualquier
-licencia, asi que no impone nada sobre PDFX.
+licencia, asi que no impone nada sobre PDFx.
 
 
 ===========================================================================
