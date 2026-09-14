@@ -90,6 +90,7 @@ class App(tk.Tk):
         self.cancel_flag = threading.Event()
         self.last_results: list = []
         self.last_md: Path | None = None
+        self.last_html: Path | None = None
 
         self._init_style()
         self._build_vars()
@@ -271,6 +272,8 @@ class App(tk.Tk):
                    command=self.view_last_md).pack(side="left", padx=4)
         ttk.Button(done, text="Abrir en MDx",
                    command=self.open_in_mdx).pack(side="left", padx=4)
+        ttk.Button(done, text="Abrir en el navegador",
+                   command=self.open_in_browser).pack(side="left", padx=4)
         return tab
 
     # ---------------- pestana 2: revisar --------------------------------
@@ -374,6 +377,8 @@ class App(tk.Tk):
         ttk.Button(bar, text="Recargar", command=self.reload_md).pack(side="left", padx=4)
         ttk.Button(bar, text="Abrir en MDx",
                    command=self.open_in_mdx).pack(side="left", padx=4)
+        ttk.Button(bar, text="Abrir en el navegador",
+                   command=self.open_in_browser).pack(side="left", padx=4)
         ttk.Label(bar, text="Tema:").pack(side="left", padx=(12, 2))
         cb = ttk.Combobox(bar, textvariable=self.v_view_theme, width=8,
                           state="readonly", values=("claro", "oscuro"))
@@ -402,7 +407,7 @@ class App(tk.Tk):
             "Se muestran encabezados, listas, tablas, codigo e imagenes.\n\n"
             "Para seguir editando con mas herramientas (temas, matematicas, "
             "diagramas, sincronizacion), usa **Abrir en MDx**. Si no la tienes "
-            "instalada, te manda a https://mdx.crgm.app/ para instalarla.\n"
+            "instalada, te manda a https://md.crgm.app/ para instalarla.\n"
         )
         return tab
 
@@ -661,8 +666,12 @@ class App(tk.Tk):
             self._log(f"    aviso: {w}")
         for fmt, path in result.outputs.items():
             self._log(f"    -> {path}")
-            if fmt == "md":
-                self.last_md = path
+        if "md" in result.outputs:
+            self.last_md = result.outputs["md"]
+            # el .html, si tambien se genero, es lo que se abre en el
+            # navegador -- se ve formateado; el .md a secas se abriria
+            # como texto plano en la mayoria de navegadores.
+            self.last_html = result.outputs.get("html")
 
     # -- lista de candidatos ---------------------------------------------
     def _fill_candidates(self, candidates: list) -> None:
@@ -809,13 +818,26 @@ class App(tk.Tk):
             open_in_explorer(self.last_md)
             return
         import webbrowser
-        webbrowser.open("https://mdx.crgm.app/")
+        webbrowser.open("https://md.crgm.app/")
         messagebox.showinfo(
             APP_NAME,
             "No encontre ninguna aplicacion asociada a los ficheros .md en "
-            "este equipo.\n\nSe abrio https://mdx.crgm.app/ - instala MDx "
+            "este equipo.\n\nSe abrio https://md.crgm.app/ - instala MDx "
             "ahi (o arrastra el archivo a la pagina) y vuelve a intentarlo."
         )
+
+    def open_in_browser(self) -> None:
+        """Abre el resultado en el navegador del sistema, a proposito (a
+        diferencia de open_in_mdx, que solo cae al navegador cuando no
+        encuentra ninguna aplicacion asociada a .md). Prefiere el .html
+        si esta disponible -- se ve formateado -- y si no, abre el .md
+        tal cual; la mayoria de navegadores lo muestran como texto plano."""
+        if not self.last_md or not self.last_md.exists():
+            messagebox.showinfo(APP_NAME, "Todavia no hay ningun Markdown generado.")
+            return
+        destino = self.last_html if (self.last_html and self.last_html.exists()) else self.last_md
+        import webbrowser
+        webbrowser.open(destino.as_uri())
 
     def _load_md(self, path: Path) -> None:
         try:
