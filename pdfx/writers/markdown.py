@@ -187,10 +187,14 @@ def render(doc: Document, settings: Settings, redaction_note: str = "") -> str:
     if not _title_already_in_body(doc, title):
         parts.append(f"# {title}")
 
+    primera_pagina = True
     for page in doc.pages:
         body = render_page(page, settings)
         if body:
+            if settings.md_slide_breaks and not primera_pagina:
+                parts.append("---")
             parts.append(body)
+            primera_pagina = False
 
     if doc.warnings:
         parts.append(

@@ -51,6 +51,18 @@ def test_nativo_tabla_completa(nativo, tmp_path):
         assert tuple(fila[1:]) == FILAS_ESPERADAS[ref]
 
 
+def test_diapositivas_separa_cada_pagina_con_hr(nativo, tmp_path):
+    # MDx (md.crgm.app) corta las diapositivas de Presentar por "---": con
+    # md_slide_breaks activo, cada pagina debe quedar como su propia diapositiva.
+    md = convertir(nativo, tmp_path, formats=["md"], md_slide_breaks=True).outputs["md"].read_text()
+    assert "---\n\n<!-- pagina 2 -->" in md
+
+
+def test_sin_diapositivas_no_hay_hr_entre_paginas(nativo, tmp_path):
+    md = convertir(nativo, tmp_path, formats=["md"]).outputs["md"].read_text()
+    assert "---\n\n<!-- pagina 2 -->" not in md
+
+
 def test_nativo_imagen_extraida(nativo, tmp_path):
     result = convertir(nativo, tmp_path, formats=["md"])
     imagenes = [i for p in result.document.pages for i in p.images]

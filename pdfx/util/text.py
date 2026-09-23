@@ -98,11 +98,18 @@ def is_probably_caption(text: str) -> bool:
 
 
 def looks_like_garbage(text: str) -> bool:
-    """Detecta capas de texto corruptas (PDFs con fuentes sin ToUnicode)."""
+    """Detecta capas de texto corruptas (PDFs con fuentes sin ToUnicode).
+
+    Cuenta letras+digitos, no solo letras: un esquema electrico real (tags
+    -K6.2, numeros de hilo 6.25, coordenadas de rejilla) es legitimamente
+    numerico y bajaria del umbral solo por letras, aunque el texto sea
+    perfecto. Una fuente sin ToUnicode de verdad tampoco decodifica dígitos
+    limpios, así que sigue cayendo aquí; y el chequeo de caracteres de
+    reemplazo/area privada de abajo cubre ese caso de todos modos."""
     if len(text) < 40:
         return False
-    letters = sum(c.isalpha() for c in text)
-    if letters / max(len(text), 1) < 0.35:
+    alnum = sum(c.isalnum() for c in text)
+    if alnum / max(len(text), 1) < 0.35:
         return True
     # Muchos caracteres de reemplazo o del area de uso privado.
     weird = sum(1 for c in text if c == "�" or 0xE000 <= ord(c) <= 0xF8FF)

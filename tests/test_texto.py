@@ -49,6 +49,13 @@ def test_garbage_detecta_capa_de_texto_corrupta():
     assert not looks_like_garbage("Un parrafo normal de texto tecnico en espanol.")
 
 
+def test_garbage_no_confunde_esquema_electrico_denso_con_corrupcion():
+    # Un esquema real (tags, numeros de hilo, referencias cruzadas de pagina)
+    # es legitimamente numerico: pocas letras, pero texto perfectamente valido.
+    texto = "-K6.2 DILM9-10 24 Vdc 1 2 /6.7 3 4 /6.7 5 6 /6.8 13 14 6.25 BK 6.26 BK " * 3
+    assert not looks_like_garbage(texto)
+
+
 def test_slugify_y_tokens():
     assert slugify("Informe de Mantenimiento Preventivo") == "informe-de-mantenimiento-preventivo"
     assert token_estimate("a" * 400) == 100

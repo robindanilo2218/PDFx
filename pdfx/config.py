@@ -75,6 +75,10 @@ class Settings:
     xlsx_mode: XlsxMode = "tables"
     md_claude_header: bool = True        # cabecera que evita el "esto es un PDF"
     md_single_file: bool = True
+    # "---" entre cada pagina: MDx (md.crgm.app) corta ahi las diapositivas de
+    # Presentar (trocearDiapositivas en su index.html), asi el Markdown queda
+    # listo para presentar sin tocar nada mas.
+    md_slide_breaks: bool = False
     docx_page_breaks: bool = True
 
     # --- modo rapido ------------------------------------------------------

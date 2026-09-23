@@ -2,6 +2,7 @@
 # desde esta misma carpeta y no pueden compartirlo.
 .venv/
 .venv-linux/
+.venv-dev/
 
 # Todo lo que genera una compilacion. Se regenera con INSTALAR_PDFX.bat o
 # INSTALAR_PDFX.sh, asi que no tiene sentido versionarlo: son cientos de MB.

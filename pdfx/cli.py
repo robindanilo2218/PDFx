@@ -108,6 +108,8 @@ def _add_convert_args(p: argparse.ArgumentParser) -> None:
                    help="guarda tambien cada pagina escaneada como imagen")
     g.add_argument("--excel-modo", choices=("tables", "full"), default="tables")
     g.add_argument("--sin-marcas-pagina", action="store_true")
+    g.add_argument("--diapositivas", action="store_true",
+                   help="separa cada pagina con '---' (diapositivas en MDx Presentar)")
 
     g = p.add_argument_group("saneado de datos sensibles")
     g.add_argument("--ocultar", action="append", default=[], metavar="TEXTO",
@@ -209,6 +211,7 @@ def settings_from_args(args) -> Settings:
         detect_columns=not args.sin_columnas,
         keep_page_scans=args.paginas_completas,
         keep_page_marks=not args.sin_marcas_pagina,
+        md_slide_breaks=args.diapositivas,
         xlsx_mode=args.excel_modo,
         redaction=redaction,
         verbose=args.detalle,

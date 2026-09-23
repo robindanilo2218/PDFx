@@ -68,6 +68,7 @@ def extract_words(plumber_page) -> NativeText:
             italic=italic,
             conf=100.0,
             font=fontname,
+            upright=bool(w.get("upright", True)),
         )
         words.append(word)
         area += (word.x1 - word.x0) * (word.bottom - word.top)

@@ -39,6 +39,10 @@ class Word:
     italic: bool = False
     conf: float = 100.0
     font: str = ""
+    # False = texto rotado (pdfplumber). Los planos electricos rotan etiquetas
+    # 90 grados junto a los cables; una palabra asi no debe mezclarse caracter
+    # por caracter con el flujo horizontal (ver analysis/layout.py).
+    upright: bool = True
 
     @property
     def bbox(self) -> BBox:
@@ -157,6 +161,65 @@ class ImageRef:
 Element = Union[Block, Table, ImageRef]
 
 
+# --------------------------------------------------------------------------
+# Esquemas electricos unifilares (convencion EPLAN): la conectividad viene
+# codificada en el propio texto de la pagina (tags, referencias cruzadas
+# pagina.linea, numero+color+calibre de cable), no hace falta geometria.
+# Ver analysis/schematic.py. Una lista de componentes + una lista de cables
+# (aristas) basta; no hace falta una clase de grafo propia.
+ComponentKind = Literal[
+    "interruptor", "contactor", "motor", "borne", "fusible", "sensor", "plc",
+]
+
+
+@dataclass(slots=True)
+class Component:
+    """Un elemento del esquema con su tag EPLAN (`-K6.2`, `-M6.1`...)."""
+
+    tag: str
+    kind: ComponentKind
+    # Denominacion comercial ("PKZM0-6,3", "DILM17-01") o descripcion libre
+    # (motores: "Motor soplo sobre hendedores"). Vacio si no hay confianza.
+    label: str = ""
+    # Atributos sueltos ya formateados: Ir=4.8A, bobina=24Vdc, potencia=2.2kW...
+    attrs: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class Wire:
+    """Un cable/hilo identificado por su numero (convencion `pagina.linea`)."""
+
+    number: str
+    color: str = ""     # codigo de 2 letras: BK, BU, GNYE...
+    gauge: str = ""      # seccion en mm2, notacion europea: "1,5"
+    frm: str = ""         # extremo origen: "-Q6.1" o "-Q6.1:T1" si se sabe el pin
+    to: str = ""            # extremo destino
+
+
+@dataclass(slots=True)
+class CrossRef:
+    """Referencia cruzada `-K6.2 /6.4`: el otro extremo esta en pagina 6, linea 4."""
+
+    tag: str
+    page: str
+    line: str
+
+
+@dataclass(slots=True)
+class Schematic:
+    """Resultado de analysis/schematic.py para una pagina densa en patrones
+    EPLAN. `None` en Page.schematic significa "esta pagina no es un esquema"."""
+
+    source: str = ""      # "L1 L2 L3 480V 50Hz" si se detecto la acometida
+    components: list[Component] = field(default_factory=list)
+    wires: list[Wire] = field(default_factory=list)
+    crossrefs: list[CrossRef] = field(default_factory=list)
+
+    @property
+    def density(self) -> int:
+        return len(self.components) + len(self.wires) + len(self.crossrefs)
+
+
 @dataclass(slots=True)
 class Page:
     number: int                      # 1-based
@@ -167,6 +230,9 @@ class Page:
     rotation: int = 0
     ocr_conf: float = 0.0
     notes: list[str] = field(default_factory=list)
+    # Si no es None, esta pagina se detecto como esquema unifilar y el
+    # writer de markdown debe emitir un bloque ```unifilar en vez de prosa.
+    schematic: Optional[Schematic] = None
 
     @property
     def tables(self) -> list[Table]:
